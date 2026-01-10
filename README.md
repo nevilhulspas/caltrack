@@ -67,18 +67,13 @@ create index food_logs_user_name_idx on food_logs(user_name);
 3. Deploy the Edge Functions (see `supabase/functions/`)
 4. Set `ANTHROPIC_API_KEY` in your Supabase project secrets
 
-### 2. Generate the Shortcut
+### 2. Install the Shortcut
 
-```bash
-# Requires Python 3 and macOS (for signing)
-python3 generate_shortcut.py https://YOUR_PROJECT.supabase.co/functions/v1/parse-food YourName
-```
-
-This creates a signed `.shortcut` file. To import:
-
-1. **AirDrop** the file to your iPhone
-2. Open from **Files app**
-3. Tap **Add Shortcut**
+1. Open this link on your iPhone: [CalTrack Shortcut](https://www.icloud.com/shortcuts/3a9f061a3d74420d94069f6a8386c73c)
+2. Tap **Add Shortcut**
+3. Edit the shortcut and update:
+   - The URL to your Supabase project
+   - The username to your name
 
 ### 3. Enable MacroFactor Sync
 
@@ -158,9 +153,8 @@ Claude uses its training data for nutrition estimates. For more accuracy:
 | File | Purpose |
 |------|---------|
 | `README.md` | This file |
-| `generate_shortcut.py` | Generates .shortcut files for each user |
 | `dashboard.html` | Web dashboard for viewing food history |
-| `SHORTCUT_GUIDE.md` | Manual step-by-step Shortcut creation guide |
+| `supabase/functions/` | Edge Function source code |
 
 ## API Endpoints
 
