@@ -4,54 +4,400 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CalTrack Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,400;9..144,600&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e5e5e5;padding:16px;max-width:900px;margin:0 auto}
-h1{margin-bottom:16px;color:#fff;font-size:24px}
-.filters{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
-.filters button{padding:8px 14px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500}
-.filters button:hover,.filters button.active{background:#2a2a2a;border-color:#10b981}
-.filters .sep{color:#333;display:flex;align-items:center;padding:0 4px}
-.date-section{margin-bottom:24px}
-.date-header{font-size:13px;color:#666;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #1a1a1a;font-weight:500}
-.user-section{margin-bottom:16px}
-.user-header{display:flex;justify-content:space-between;align-items:center;padding:14px;background:#1a1a1a;border-radius:12px 12px 0 0;border:1px solid #333;flex-wrap:wrap;gap:8px}
-.user-name{font-weight:600;color:#10b981;font-size:15px}
-.user-totals{display:flex;gap:12px;font-size:12px;flex-wrap:wrap}
-.user-totals span{color:#888}
-.user-totals strong{color:#fff}
-.food-list{border:1px solid #333;border-top:none;border-radius:0 0 12px 12px;overflow:hidden}
-.food-item{padding:14px;border-bottom:1px solid #222;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.food-item:last-child{border-bottom:none}
-.food-info{flex:1;min-width:0}
-.food-name{font-weight:500;font-size:14px;line-height:1.4}
-.food-notes{font-size:12px;color:#888;margin-top:4px;font-style:italic}
-.food-time{font-size:11px;color:#555;margin-top:6px}
-.food-macros{display:grid;grid-template-columns:auto auto;gap:4px 12px;font-size:12px;color:#888;text-align:right;flex-shrink:0}
-.food-macros .cal{color:#f59e0b;font-weight:600;font-size:14px}
-.food-macros .macro-label{color:#666;font-size:11px}
-.empty{text-align:center;padding:40px;color:#555}
-.loading{text-align:center;padding:40px;color:#888}
-@media (max-width: 480px) {
-  body{padding:12px}
-  .food-item{flex-direction:column;gap:10px}
-  .food-macros{display:flex;gap:14px;width:100%;justify-content:flex-start;margin-top:4px;padding-top:8px;border-top:1px solid #222}
-  .food-macros span{display:flex;flex-direction:column;align-items:center}
-  .food-macros .cal{font-size:13px}
+:root {
+  --bg-primary: #0D0D0D;
+  --bg-card: #161616;
+  --bg-card-hover: #1C1C1C;
+  --text-primary: #F5F5F4;
+  --text-secondary: #A8A29E;
+  --text-muted: #6B6560;
+  --accent-coral: #F4845F;
+  --accent-coral-soft: #3D2A24;
+  --accent-sage: #6EE7B7;
+  --accent-sage-soft: #1A3D2E;
+  --accent-gold: #FCD34D;
+  --accent-gold-soft: #3D3520;
+  --border: rgba(255, 255, 255, 0.06);
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.3), 0 4px 24px rgba(0, 0, 0, 0.2);
+  --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.4), 0 8px 32px rgba(0, 0, 0, 0.3);
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  padding: 24px;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.015;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.container {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+header {
+  margin-bottom: 40px;
+  animation: fadeSlideIn 0.6s ease-out;
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-size: 42px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+h1 span {
+  color: var(--accent-coral);
+}
+
+.tagline {
+  font-size: 15px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+  align-items: center;
+  animation: fadeSlideIn 0.6s ease-out 0.1s backwards;
+}
+
+.filter-group {
+  display: flex;
+  gap: 6px;
+  background: var(--bg-card);
+  padding: 6px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+
+.filters button {
+  padding: 10px 18px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.filters button:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.filters button.active {
+  background: var(--accent-coral);
+  color: #0D0D0D;
+  font-weight: 600;
+  box-shadow: 0 2px 12px rgba(244, 132, 95, 0.4);
+}
+
+.filter-group.users button.active {
+  background: var(--accent-sage);
+  color: #0D0D0D;
+  box-shadow: 0 2px 12px rgba(110, 231, 183, 0.35);
+}
+
+.date-section {
+  margin-bottom: 32px;
+  animation: fadeSlideIn 0.5s ease-out backwards;
+}
+
+.date-section:nth-child(1) { animation-delay: 0.15s; }
+.date-section:nth-child(2) { animation-delay: 0.2s; }
+.date-section:nth-child(3) { animation-delay: 0.25s; }
+.date-section:nth-child(4) { animation-delay: 0.3s; }
+.date-section:nth-child(5) { animation-delay: 0.35s; }
+
+.date-header {
+  font-family: 'Fraunces', serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 16px;
+  padding-left: 4px;
+}
+
+.user-section {
+  margin-bottom: 20px;
+}
+
+.user-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.user-card:hover {
+  box-shadow: var(--shadow-hover);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.user-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.user-name {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 20px;
+  color: var(--text-primary);
+}
+
+.user-totals {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat.calories .stat-value { color: var(--accent-coral); }
+.stat.protein .stat-value { color: var(--accent-sage); }
+.stat.carbs .stat-value { color: var(--accent-gold); }
+
+.food-list {
+  padding: 8px 0;
+}
+
+.food-item {
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  transition: background 0.2s ease;
+}
+
+.food-item:hover {
+  background: var(--bg-card-hover);
+}
+
+.food-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.food-name {
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.food-notes {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.food-time {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.food-macros {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.macro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 44px;
+}
+
+.macro-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.macro-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.macro.cal .macro-value {
+  font-size: 16px;
+  color: var(--accent-coral);
+  font-weight: 700;
+}
+
+.empty, .loading {
+  text-align: center;
+  padding: 80px 24px;
+  color: var(--text-muted);
+  font-size: 16px;
+}
+
+.loading::after {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(244, 132, 95, 0.2);
+  border-top-color: var(--accent-coral);
+  border-radius: 50%;
+  margin-left: 12px;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 600px) {
+  body { padding: 16px; }
+
+  h1 { font-size: 32px; }
+
+  .filters { gap: 8px; }
+
+  .filter-group {
+    padding: 4px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .filters button {
+    padding: 10px 14px;
+    font-size: 13px;
+    flex: 1;
+  }
+
+  .user-header {
+    padding: 16px 18px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .user-totals {
+    width: 100%;
+    justify-content: space-between;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .food-item {
+    flex-direction: column;
+    padding: 14px 18px;
+    gap: 12px;
+  }
+
+  .food-macros {
+    width: 100%;
+    justify-content: space-between;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+  }
 }
 </style>
 </head>
 <body>
-<h1>CalTrack</h1>
-<div class="filters">
-<button onclick="toggleUser('Nevil')" id="btn-nevil">Nevil</button>
-<button onclick="toggleUser('Malou')" id="btn-malou">Malou</button>
-<span class="sep">|</span>
-<button onclick="setDays(1)" id="btn-1">Today</button>
-<button onclick="setDays(7)" id="btn-7">7 Days</button>
-<button onclick="setDays(30)" id="btn-30">30 Days</button>
+<div class="container">
+  <header>
+    <h1>Cal<span>Track</span></h1>
+    <p class="tagline">Mindful eating, visualized</p>
+  </header>
+
+  <div class="filters">
+    <div class="filter-group users">
+      <button onclick="toggleUser('Nevil')" id="btn-nevil">Nevil</button>
+      <button onclick="toggleUser('Malou')" id="btn-malou">Malou</button>
+    </div>
+    <div class="filter-group">
+      <button onclick="setDays(1)" id="btn-1">Today</button>
+      <button onclick="setDays(7)" id="btn-7">7 Days</button>
+      <button onclick="setDays(30)" id="btn-30">30 Days</button>
+    </div>
+  </div>
+
+  <div id="content"><div class="loading">Loading</div></div>
 </div>
-<div id="content"><div class="loading">Loading...</div></div>
 
 <script>
 const API_URL = '__API_URL__';
@@ -61,9 +407,7 @@ let allLogs = [];
 
 function toggleUser(user) {
   if (selectedUsers.has(user)) {
-    if (selectedUsers.size > 1) {
-      selectedUsers.delete(user);
-    }
+    if (selectedUsers.size > 1) selectedUsers.delete(user);
   } else {
     selectedUsers.add(user);
   }
@@ -87,27 +431,24 @@ function updateButtons() {
 
 async function fetchData() {
   const content = document.getElementById('content');
-  content.innerHTML = '<div class="loading">Loading...</div>';
-
-  const url = `${API_URL}?days=${currentDays}`;
+  content.innerHTML = '<div class="loading">Loading</div>';
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(`${API_URL}?days=${currentDays}`);
     const data = await res.json();
     allLogs = data.logs || [];
     renderData(allLogs);
   } catch (e) {
-    content.innerHTML = '<div class="empty">Error loading data</div>';
+    content.innerHTML = '<div class="empty">Unable to load data</div>';
   }
 }
 
 function renderData(logs) {
   const content = document.getElementById('content');
-
   const filteredLogs = logs.filter(log => selectedUsers.has(log.user_name));
 
-  if (!filteredLogs || filteredLogs.length === 0) {
-    content.innerHTML = '<div class="empty">No food logged yet</div>';
+  if (!filteredLogs.length) {
+    content.innerHTML = '<div class="empty">No meals logged yet</div>';
     return;
   }
 
@@ -115,14 +456,14 @@ function renderData(logs) {
   const totals = {};
 
   for (const log of filteredLogs) {
-    const date = new Date(log.created_at).toLocaleDateString('nl-NL');
+    const date = new Date(log.created_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
     const userName = log.user_name || 'Unknown';
+    const key = `${date}-${userName}`;
 
     if (!byDate[date]) byDate[date] = {};
     if (!byDate[date][userName]) byDate[date][userName] = [];
     byDate[date][userName].push(log);
 
-    const key = `${date}-${userName}`;
     if (!totals[key]) totals[key] = { calories: 0, protein: 0, carbs: 0, fat: 0 };
     totals[key].calories += Number(log.calories) || 0;
     totals[key].protein += Number(log.protein_g) || 0;
@@ -136,16 +477,65 @@ function renderData(logs) {
     for (const [userName, foods] of Object.entries(users)) {
       const t = totals[`${date}-${userName}`];
       let foodItems = '';
+
       for (const f of foods) {
         const notes = f.notes ? `<div class="food-notes">"${f.notes}"</div>` : '';
-        const time = new Date(f.created_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
-        const cal = f.calories || 0;
-        const p = f.protein_g || 0;
-        const c = f.carbs_g || 0;
-        const fat = f.fat_g || 0;
-        foodItems += `<div class="food-item"><div class="food-info"><div class="food-name">${f.food_name || f.raw_input}</div>${notes}<div class="food-time">${time}</div></div><div class="food-macros"><span class="cal">${cal} Cal</span><span>${p}p</span><span>${c}c</span><span>${fat}f</span></div></div>`;
+        const time = new Date(f.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        foodItems += `
+          <div class="food-item">
+            <div class="food-info">
+              <div class="food-name">${f.food_name || f.raw_input}</div>
+              ${notes}
+              <div class="food-time">${time}</div>
+            </div>
+            <div class="food-macros">
+              <div class="macro cal">
+                <span class="macro-value">${f.calories || 0}</span>
+                <span class="macro-label">kcal</span>
+              </div>
+              <div class="macro">
+                <span class="macro-value">${f.protein_g || 0}g</span>
+                <span class="macro-label">protein</span>
+              </div>
+              <div class="macro">
+                <span class="macro-value">${f.carbs_g || 0}g</span>
+                <span class="macro-label">carbs</span>
+              </div>
+              <div class="macro">
+                <span class="macro-value">${f.fat_g || 0}g</span>
+                <span class="macro-label">fat</span>
+              </div>
+            </div>
+          </div>`;
       }
-      userSections += `<div class="user-section"><div class="user-header"><span class="user-name">${userName}</span><div class="user-totals"><span>🔥 <strong>${Math.round(t.calories)}</strong> kcal</span><span>🥩 <strong>${Math.round(t.protein)}</strong>g</span><span>🍞 <strong>${Math.round(t.carbs)}</strong>g</span><span>🧈 <strong>${Math.round(t.fat)}</strong>g</span></div></div><div class="food-list">${foodItems}</div></div>`;
+
+      userSections += `
+        <div class="user-section">
+          <div class="user-card">
+            <div class="user-header">
+              <span class="user-name">${userName}</span>
+              <div class="user-totals">
+                <div class="stat calories">
+                  <span class="stat-value">${Math.round(t.calories)}</span>
+                  <span class="stat-label">kcal</span>
+                </div>
+                <div class="stat protein">
+                  <span class="stat-value">${Math.round(t.protein)}g</span>
+                  <span class="stat-label">protein</span>
+                </div>
+                <div class="stat carbs">
+                  <span class="stat-value">${Math.round(t.carbs)}g</span>
+                  <span class="stat-label">carbs</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-value">${Math.round(t.fat)}g</span>
+                  <span class="stat-label">fat</span>
+                </div>
+              </div>
+            </div>
+            <div class="food-list">${foodItems}</div>
+          </div>
+        </div>`;
     }
     html += `<div class="date-section"><div class="date-header">${date}</div>${userSections}</div>`;
   }
