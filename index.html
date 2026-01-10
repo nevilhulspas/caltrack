@@ -126,7 +126,7 @@ h1 span {
   margin-bottom: 32px;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   animation: fadeSlideIn 0.6s ease-out 0.1s backwards;
 }
 
@@ -479,7 +479,7 @@ let allLogs = [];
 
 function toggleUser(user) {
   if (selectedUsers.has(user)) {
-    if (selectedUsers.size > 1) selectedUsers.delete(user);
+    selectedUsers.delete(user);
   } else {
     selectedUsers.add(user);
   }
@@ -517,6 +517,12 @@ async function fetchData() {
 
 function renderData(logs) {
   const content = document.getElementById('content');
+
+  if (selectedUsers.size === 0) {
+    content.innerHTML = '<div class="empty">Select a person to view their meals</div>';
+    return;
+  }
+
   const filteredLogs = logs.filter(log => selectedUsers.has(log.user_name));
 
   if (!filteredLogs.length) {
