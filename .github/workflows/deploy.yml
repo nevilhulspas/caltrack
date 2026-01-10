@@ -24,6 +24,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Inject API URL
+        run: |
+          sed -i "s|__API_URL__|${{ secrets.SUPABASE_API_URL }}|g" dashboard.html
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 

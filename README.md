@@ -107,7 +107,20 @@ create index food_logs_user_name_idx on food_logs(user_name);
 
 View your food history at: `https://YOUR_USERNAME.github.io/caltrack/dashboard.html`
 
-Features:
+### Setup
+
+1. Fork this repo
+2. Go to **Settings → Secrets and variables → Actions**
+3. Add a new repository secret:
+   - Name: `SUPABASE_API_URL`
+   - Value: `https://YOUR_PROJECT.supabase.co/functions/v1/dashboard-api`
+4. Enable GitHub Pages (Settings → Pages → Source: GitHub Actions)
+5. Push a commit or manually trigger the deploy workflow
+
+The GitHub Action will inject your API URL into the dashboard at deploy time.
+
+### Features
+
 - Filter by user
 - Filter by time range (Today, 7 days, 30 days)
 - Daily totals per user
