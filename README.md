@@ -17,7 +17,7 @@ Speak food → iOS transcribes → Supabase Edge Function → Claude → Apple H
 - **Voice input** - Just speak what you ate, no typing or searching
 - **Multi-user support** - Multiple people can use the same backend
 - **Food history** - All entries stored in Supabase for tracking
-- **Web dashboard** - View and filter food logs from any device
+- **Web dashboard** - View and filter food logs from any device (PWA - add to home screen)
 - **Undo/revert** - Say "undo" or "delete last" to remove the last entry
 - **Notes** - Add context like "post workout" or "cheat meal"
 - **Multi-language** - Works in Dutch, English, and other languages
@@ -105,7 +105,7 @@ create index food_logs_user_name_idx on food_logs(user_name);
 
 ## Dashboard
 
-View your food history at: `https://YOUR_USERNAME.github.io/caltrack/index.html`
+View your food history at: `https://YOUR_USERNAME.github.io/caltrack/`
 
 ### Setup
 
