@@ -105,7 +105,7 @@ create index food_logs_user_name_idx on food_logs(user_name);
 
 ## Dashboard
 
-View your food history at: `https://YOUR_USERNAME.github.io/caltrack/dashboard.html`
+View your food history at: `https://YOUR_USERNAME.github.io/caltrack/index.html`
 
 ### Setup
 
@@ -166,7 +166,7 @@ Claude uses its training data for nutrition estimates. For more accuracy:
 | File | Purpose |
 |------|---------|
 | `README.md` | This file |
-| `dashboard.html` | Web dashboard for viewing food history |
+| `index.html` | Web dashboard for viewing food history |
 | `supabase/functions/` | Edge Function source code |
 
 ## API Endpoints

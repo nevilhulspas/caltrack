@@ -26,7 +26,7 @@ jobs:
 
       - name: Inject API URL
         run: |
-          sed -i "s|__API_URL__|${{ secrets.SUPABASE_API_URL }}|g" dashboard.html
+          sed -i "s|__API_URL__|${{ secrets.SUPABASE_API_URL }}|g" index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

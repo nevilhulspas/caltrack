@@ -63,6 +63,35 @@ header {
   animation: fadeSlideIn 0.6s ease-out;
 }
 
+.header-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.refresh-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.refresh-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--accent-coral);
+  border-color: rgba(244, 132, 95, 0.3);
+}
+
+.refresh-btn:active svg {
+  animation: spin 0.5s ease;
+}
+
 h1 {
   font-family: 'Fraunces', serif;
   font-size: 42px;
@@ -380,7 +409,15 @@ h1 span {
 <body>
 <div class="container">
   <header>
-    <h1>Cal<span>Track</span></h1>
+    <div class="header-row">
+      <h1>Cal<span>Track</span></h1>
+      <button class="refresh-btn" onclick="fetchData()" title="Refresh">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+          <path d="M21 3v5h-5"/>
+        </svg>
+      </button>
+    </div>
     <p class="tagline">Mindful eating, visualized</p>
   </header>
 
