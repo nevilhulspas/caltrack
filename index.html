@@ -394,15 +394,23 @@ h1 span {
 
   .food-item {
     flex-direction: column;
-    padding: 14px 18px;
-    gap: 12px;
+    padding: 14px 16px;
+    margin: 8px 12px;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+  }
+
+  .food-item:hover {
+    background: rgba(255, 255, 255, 0.03);
   }
 
   .food-macros {
     width: 100%;
     justify-content: space-between;
-    padding-top: 12px;
-    border-top: 1px dashed var(--border);
+    padding-top: 0;
+    border-top: none;
   }
 }
 </style>
