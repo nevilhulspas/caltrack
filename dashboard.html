@@ -8,10 +8,12 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e5e5e5;padding:16px;max-width:900px;margin:0 auto}
 h1{margin-bottom:16px;color:#fff;font-size:24px}
-.filters{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
-.filters button{padding:8px 14px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500}
-.filters button:hover,.filters button.active{background:#2a2a2a;border-color:#10b981}
-.filters .sep{color:#333;display:flex;align-items:center;padding:0 4px}
+.filters{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
+.filters .users{display:flex;gap:8px}
+.filters .dates{display:flex;gap:8px;margin-left:auto}
+.filters button{padding:8px 14px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:all 0.15s}
+.filters button:hover{background:#2a2a2a;border-color:#444}
+.filters button.active{background:#10b981;border-color:#10b981;color:#fff}
 .date-section{margin-bottom:24px}
 .date-header{font-size:13px;color:#666;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #1a1a1a;font-weight:500}
 .user-section{margin-bottom:16px}
@@ -23,44 +25,55 @@ h1{margin-bottom:16px;color:#fff;font-size:24px}
 .food-list{border:1px solid #333;border-top:none;border-radius:0 0 12px 12px;overflow:hidden}
 .food-item{padding:14px;border-bottom:1px solid #222;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .food-item:last-child{border-bottom:none}
-.food-info{flex:1;min-width:0}
+.food-info{flex:1;min-width:0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.food-details{flex:1;min-width:0}
 .food-name{font-weight:500;font-size:14px;line-height:1.4}
 .food-notes{font-size:12px;color:#888;margin-top:4px;font-style:italic}
-.food-time{font-size:11px;color:#555;margin-top:6px}
-.food-macros{display:grid;grid-template-columns:auto auto;gap:4px 12px;font-size:12px;color:#888;text-align:right;flex-shrink:0}
-.food-macros .cal{color:#f59e0b;font-weight:600;font-size:14px}
-.food-macros .macro-label{color:#666;font-size:11px}
+.food-time{font-size:11px;color:#555;text-align:right;white-space:nowrap}
+.food-macros{display:flex;gap:10px;font-size:12px;color:#888;flex-shrink:0}
+.food-macros .cal{color:#f59e0b;font-weight:600}
 .empty{text-align:center;padding:40px;color:#555}
 .loading{text-align:center;padding:40px;color:#888}
-@media (max-width: 480px) {
-  body{padding:12px}
+
+@media (max-width: 600px) {
+  .filters{flex-direction:column;align-items:stretch}
+  .filters .users{justify-content:flex-start}
+  .filters .dates{margin-left:0;justify-content:flex-start}
   .food-item{flex-direction:column;gap:10px}
-  .food-macros{display:flex;gap:14px;width:100%;justify-content:flex-start;margin-top:4px;padding-top:8px;border-top:1px solid #222}
-  .food-macros span{display:flex;flex-direction:column;align-items:center}
-  .food-macros .cal{font-size:13px}
+  .food-info{width:100%}
+  .food-macros{width:100%;justify-content:flex-start;padding-top:8px;border-top:1px solid #222}
 }
 </style>
 </head>
 <body>
 <h1>CalTrack</h1>
 <div class="filters">
-<button onclick="setUser(null)" id="btn-all">All Users</button>
-<button onclick="setUser('Nevil')" id="btn-nevil">Nevil</button>
-<button onclick="setUser('Malou')" id="btn-malou">Malou</button>
-<span class="sep">|</span>
+<div class="users">
+<button onclick="toggleUser('Nevil')" id="btn-nevil">Nevil</button>
+<button onclick="toggleUser('Malou')" id="btn-malou">Malou</button>
+</div>
+<div class="dates">
 <button onclick="setDays(1)" id="btn-1">Today</button>
 <button onclick="setDays(7)" id="btn-7">7 Days</button>
 <button onclick="setDays(30)" id="btn-30">30 Days</button>
+</div>
 </div>
 <div id="content"><div class="loading">Loading...</div></div>
 
 <script>
 const API_URL = 'https://YOUR_PROJECT.supabase.co/functions/v1/dashboard-api';
-let currentUser = null;
+let selectedUsers = ['Nevil', 'Malou'];
 let currentDays = 7;
 
-function setUser(user) {
-  currentUser = user;
+function toggleUser(user) {
+  const idx = selectedUsers.indexOf(user);
+  if (idx > -1) {
+    if (selectedUsers.length > 1) {
+      selectedUsers.splice(idx, 1);
+    }
+  } else {
+    selectedUsers.push(user);
+  }
   updateButtons();
   fetchData();
 }
@@ -72,9 +85,8 @@ function setDays(days) {
 }
 
 function updateButtons() {
-  document.getElementById('btn-all').className = currentUser === null ? 'active' : '';
-  document.getElementById('btn-nevil').className = currentUser === 'Nevil' ? 'active' : '';
-  document.getElementById('btn-malou').className = currentUser === 'Malou' ? 'active' : '';
+  document.getElementById('btn-nevil').className = selectedUsers.includes('Nevil') ? 'active' : '';
+  document.getElementById('btn-malou').className = selectedUsers.includes('Malou') ? 'active' : '';
   document.getElementById('btn-1').className = currentDays === 1 ? 'active' : '';
   document.getElementById('btn-7').className = currentDays === 7 ? 'active' : '';
   document.getElementById('btn-30').className = currentDays === 30 ? 'active' : '';
@@ -84,13 +96,16 @@ async function fetchData() {
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading">Loading...</div>';
 
-  let url = `${API_URL}?days=${currentDays}`;
-  if (currentUser) url += `&user=${currentUser}`;
-
   try {
-    const res = await fetch(url);
-    const data = await res.json();
-    renderData(data.logs);
+    const allLogs = [];
+    for (const user of selectedUsers) {
+      const url = `${API_URL}?days=${currentDays}&user=${user}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      allLogs.push(...(data.logs || []));
+    }
+    allLogs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    renderData(allLogs);
   } catch (e) {
     content.innerHTML = '<div class="empty">Error loading data</div>';
   }
@@ -131,12 +146,14 @@ function renderData(logs) {
       let foodItems = '';
       for (const f of foods) {
         const notes = f.notes ? `<div class="food-notes">"${f.notes}"</div>` : '';
-        const time = new Date(f.created_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+        const dt = new Date(f.created_at);
+        const time = dt.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+        const dateStr = dt.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
         const cal = f.calories || 0;
         const p = f.protein_g || 0;
         const c = f.carbs_g || 0;
         const fat = f.fat_g || 0;
-        foodItems += `<div class="food-item"><div class="food-info"><div class="food-name">${f.food_name || f.raw_input}</div>${notes}<div class="food-time">${time}</div></div><div class="food-macros"><span class="cal">${cal} Cal</span><span>${p}p</span><span>${c}c</span><span>${fat}f</span></div></div>`;
+        foodItems += `<div class="food-item"><div class="food-info"><div class="food-details"><div class="food-name">${f.food_name || f.raw_input}</div>${notes}</div><div class="food-time">${time}<br>${dateStr}</div></div><div class="food-macros"><span class="cal">${cal} Cal</span><span>${p}p</span><span>${c}c</span><span>${fat}f</span></div></div>`;
       }
       userSections += `<div class="user-section"><div class="user-header"><span class="user-name">${userName}</span><div class="user-totals"><span>🔥 <strong>${Math.round(t.calories)}</strong> kcal</span><span>🥩 <strong>${Math.round(t.protein)}</strong>g</span><span>🍞 <strong>${Math.round(t.carbs)}</strong>g</span><span>🧈 <strong>${Math.round(t.fat)}</strong>g</span></div></div><div class="food-list">${foodItems}</div></div>`;
     }
