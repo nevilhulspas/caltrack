@@ -141,10 +141,15 @@ Deno.serve(async (req: Request) => {
     const claudeResponse = await response.json();
     const nutritionText = claudeResponse.content[0].text;
 
-    // Parse the JSON from Claude's response
+    // Parse the JSON from Claude's response (strip markdown code blocks if present)
     let nutrition;
     try {
-      nutrition = JSON.parse(nutritionText);
+      let jsonText = nutritionText.trim();
+      // Remove markdown code blocks if present
+      if (jsonText.startsWith("```")) {
+        jsonText = jsonText.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+      }
+      nutrition = JSON.parse(jsonText);
     } catch (e) {
       console.error("Failed to parse Claude response:", nutritionText);
       return new Response(
