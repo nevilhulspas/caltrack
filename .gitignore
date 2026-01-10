@@ -1,0 +1,11 @@
+# Local files
+*.local
+*.draft.md
+twitter-thread.md
+
+# OS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
