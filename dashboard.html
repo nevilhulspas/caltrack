@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CalTrack Dashboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e5e5e5;padding:20px;max-width:900px;margin:0 auto}
+h1{margin-bottom:20px;color:#fff}
+.filters{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.filters button{padding:8px 16px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:6px;cursor:pointer;font-size:14px}
+.filters button:hover,.filters button.active{background:#2a2a2a;border-color:#10b981}
+.filters .sep{color:#333;display:flex;align-items:center}
+.date-section{margin-bottom:30px}
+.date-header{font-size:14px;color:#888;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid #222}
+.user-section{margin-bottom:20px}
+.user-header{display:flex;justify-content:space-between;align-items:center;padding:12px;background:#1a1a1a;border-radius:8px 8px 0 0;border:1px solid #333;flex-wrap:wrap;gap:10px}
+.user-name{font-weight:600;color:#10b981}
+.user-totals{display:flex;gap:15px;font-size:13px;flex-wrap:wrap}
+.user-totals span{color:#888}
+.user-totals strong{color:#fff}
+.food-list{border:1px solid #333;border-top:none;border-radius:0 0 8px 8px}
+.food-item{padding:12px;border-bottom:1px solid #222;display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.food-item:last-child{border-bottom:none}
+.food-name{font-weight:500}
+.food-notes{font-size:12px;color:#888;margin-top:4px;font-style:italic}
+.food-macros{display:flex;gap:12px;font-size:13px;color:#888;flex-wrap:wrap}
+.food-macros .cal{color:#f59e0b;font-weight:600}
+.food-time{font-size:11px;color:#555;margin-top:4px}
+.empty{text-align:center;padding:40px;color:#555}
+.loading{text-align:center;padding:40px;color:#888}
+</style>
+</head>
+<body>
+<h1>CalTrack</h1>
+<div class="filters">
+<button onclick="setUser(null)" id="btn-all">All Users</button>
+<button onclick="setUser('Nevil')" id="btn-nevil">Nevil</button>
+<button onclick="setUser('Malou')" id="btn-malou">Malou</button>
+<span class="sep">|</span>
+<button onclick="setDays(1)" id="btn-1">Today</button>
+<button onclick="setDays(7)" id="btn-7">7 Days</button>
+<button onclick="setDays(30)" id="btn-30">30 Days</button>
+</div>
+<div id="content"><div class="loading">Loading...</div></div>
+
+<script>
+const API_URL = 'https://YOUR_PROJECT.supabase.co/functions/v1/dashboard-api';
+let currentUser = null;
+let currentDays = 7;
+
+function setUser(user) {
+  currentUser = user;
+  updateButtons();
+  fetchData();
+}
+
+function setDays(days) {
+  currentDays = days;
+  updateButtons();
+  fetchData();
+}
+
+function updateButtons() {
+  document.getElementById('btn-all').className = currentUser === null ? 'active' : '';
+  document.getElementById('btn-nevil').className = currentUser === 'Nevil' ? 'active' : '';
+  document.getElementById('btn-malou').className = currentUser === 'Malou' ? 'active' : '';
+  document.getElementById('btn-1').className = currentDays === 1 ? 'active' : '';
+  document.getElementById('btn-7').className = currentDays === 7 ? 'active' : '';
+  document.getElementById('btn-30').className = currentDays === 30 ? 'active' : '';
+}
+
+async function fetchData() {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="loading">Loading...</div>';
+
+  let url = `${API_URL}?days=${currentDays}`;
+  if (currentUser) url += `&user=${currentUser}`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    renderData(data.logs);
+  } catch (e) {
+    content.innerHTML = '<div class="empty">Error loading data</div>';
+  }
+}
+
+function renderData(logs) {
+  const content = document.getElementById('content');
+
+  if (!logs || logs.length === 0) {
+    content.innerHTML = '<div class="empty">No food logged yet</div>';
+    return;
+  }
+
+  const byDate = {};
+  const totals = {};
+
+  for (const log of logs) {
+    const date = new Date(log.created_at).toLocaleDateString('nl-NL');
+    const userName = log.user_name || 'Unknown';
+
+    if (!byDate[date]) byDate[date] = {};
+    if (!byDate[date][userName]) byDate[date][userName] = [];
+    byDate[date][userName].push(log);
+
+    const key = `${date}-${userName}`;
+    if (!totals[key]) totals[key] = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+    totals[key].calories += Number(log.calories) || 0;
+    totals[key].protein += Number(log.protein_g) || 0;
+    totals[key].carbs += Number(log.carbs_g) || 0;
+    totals[key].fat += Number(log.fat_g) || 0;
+  }
+
+  let html = '';
+  for (const [date, users] of Object.entries(byDate)) {
+    let userSections = '';
+    for (const [userName, foods] of Object.entries(users)) {
+      const t = totals[`${date}-${userName}`];
+      let foodItems = '';
+      for (const f of foods) {
+        const notes = f.notes ? `<div class="food-notes">"${f.notes}"</div>` : '';
+        const time = new Date(f.created_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+        foodItems += `<div class="food-item"><div><div class="food-name">${f.food_name || f.raw_input}</div>${notes}<div class="food-time">${time}</div></div><div class="food-macros"><span class="cal">${f.calories || 0}</span><span>${f.protein_g || 0}p</span><span>${f.carbs_g || 0}c</span><span>${f.fat_g || 0}f</span></div></div>`;
+      }
+      userSections += `<div class="user-section"><div class="user-header"><span class="user-name">${userName}</span><div class="user-totals"><span>🔥 <strong>${Math.round(t.calories)}</strong> kcal</span><span>🥩 <strong>${Math.round(t.protein)}</strong>g</span><span>🍞 <strong>${Math.round(t.carbs)}</strong>g</span><span>🧈 <strong>${Math.round(t.fat)}</strong>g</span></div></div><div class="food-list">${foodItems}</div></div>`;
+    }
+    html += `<div class="date-section"><div class="date-header">${date}</div>${userSections}</div>`;
+  }
+
+  content.innerHTML = html;
+}
+
+updateButtons();
+fetchData();
+</script>
+</body>
+</html>
