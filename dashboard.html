@@ -6,30 +6,39 @@
 <title>CalTrack Dashboard</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e5e5e5;padding:20px;max-width:900px;margin:0 auto}
-h1{margin-bottom:20px;color:#fff}
-.filters{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
-.filters button{padding:8px 16px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:6px;cursor:pointer;font-size:14px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e5e5e5;padding:16px;max-width:900px;margin:0 auto}
+h1{margin-bottom:16px;color:#fff;font-size:24px}
+.filters{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.filters button{padding:8px 14px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500}
 .filters button:hover,.filters button.active{background:#2a2a2a;border-color:#10b981}
-.filters .sep{color:#333;display:flex;align-items:center}
-.date-section{margin-bottom:30px}
-.date-header{font-size:14px;color:#888;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid #222}
-.user-section{margin-bottom:20px}
-.user-header{display:flex;justify-content:space-between;align-items:center;padding:12px;background:#1a1a1a;border-radius:8px 8px 0 0;border:1px solid #333;flex-wrap:wrap;gap:10px}
-.user-name{font-weight:600;color:#10b981}
-.user-totals{display:flex;gap:15px;font-size:13px;flex-wrap:wrap}
+.filters .sep{color:#333;display:flex;align-items:center;padding:0 4px}
+.date-section{margin-bottom:24px}
+.date-header{font-size:13px;color:#666;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #1a1a1a;font-weight:500}
+.user-section{margin-bottom:16px}
+.user-header{display:flex;justify-content:space-between;align-items:center;padding:14px;background:#1a1a1a;border-radius:12px 12px 0 0;border:1px solid #333;flex-wrap:wrap;gap:8px}
+.user-name{font-weight:600;color:#10b981;font-size:15px}
+.user-totals{display:flex;gap:12px;font-size:12px;flex-wrap:wrap}
 .user-totals span{color:#888}
 .user-totals strong{color:#fff}
-.food-list{border:1px solid #333;border-top:none;border-radius:0 0 8px 8px}
-.food-item{padding:12px;border-bottom:1px solid #222;display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.food-list{border:1px solid #333;border-top:none;border-radius:0 0 12px 12px;overflow:hidden}
+.food-item{padding:14px;border-bottom:1px solid #222;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .food-item:last-child{border-bottom:none}
-.food-name{font-weight:500}
+.food-info{flex:1;min-width:0}
+.food-name{font-weight:500;font-size:14px;line-height:1.4}
 .food-notes{font-size:12px;color:#888;margin-top:4px;font-style:italic}
-.food-macros{display:flex;gap:12px;font-size:13px;color:#888;flex-wrap:wrap}
-.food-macros .cal{color:#f59e0b;font-weight:600}
-.food-time{font-size:11px;color:#555;margin-top:4px}
+.food-time{font-size:11px;color:#555;margin-top:6px}
+.food-macros{display:grid;grid-template-columns:auto auto;gap:4px 12px;font-size:12px;color:#888;text-align:right;flex-shrink:0}
+.food-macros .cal{color:#f59e0b;font-weight:600;font-size:14px}
+.food-macros .macro-label{color:#666;font-size:11px}
 .empty{text-align:center;padding:40px;color:#555}
 .loading{text-align:center;padding:40px;color:#888}
+@media (max-width: 480px) {
+  body{padding:12px}
+  .food-item{flex-direction:column;gap:10px}
+  .food-macros{display:flex;gap:14px;width:100%;justify-content:flex-start;margin-top:4px;padding-top:8px;border-top:1px solid #222}
+  .food-macros span{display:flex;flex-direction:column;align-items:center}
+  .food-macros .cal{font-size:13px}
+}
 </style>
 </head>
 <body>
@@ -123,7 +132,11 @@ function renderData(logs) {
       for (const f of foods) {
         const notes = f.notes ? `<div class="food-notes">"${f.notes}"</div>` : '';
         const time = new Date(f.created_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
-        foodItems += `<div class="food-item"><div><div class="food-name">${f.food_name || f.raw_input}</div>${notes}<div class="food-time">${time}</div></div><div class="food-macros"><span class="cal">${f.calories || 0}</span><span>${f.protein_g || 0}p</span><span>${f.carbs_g || 0}c</span><span>${f.fat_g || 0}f</span></div></div>`;
+        const cal = f.calories || 0;
+        const p = f.protein_g || 0;
+        const c = f.carbs_g || 0;
+        const fat = f.fat_g || 0;
+        foodItems += `<div class="food-item"><div class="food-info"><div class="food-name">${f.food_name || f.raw_input}</div>${notes}<div class="food-time">${time}</div></div><div class="food-macros"><span class="cal">${cal} Cal</span><span>${p}p</span><span>${c}c</span><span>${fat}f</span></div></div>`;
       }
       userSections += `<div class="user-section"><div class="user-header"><span class="user-name">${userName}</span><div class="user-totals"><span>🔥 <strong>${Math.round(t.calories)}</strong> kcal</span><span>🥩 <strong>${Math.round(t.protein)}</strong>g</span><span>🍞 <strong>${Math.round(t.carbs)}</strong>g</span><span>🧈 <strong>${Math.round(t.fat)}</strong>g</span></div></div><div class="food-list">${foodItems}</div></div>`;
     }
