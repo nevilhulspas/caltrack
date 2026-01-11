@@ -612,7 +612,7 @@ function renderData(logs) {
   const totals = {};
 
   for (const log of filteredLogs) {
-    const date = new Date(log.created_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    const date = new Date(log.entry_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
     const userName = log.user_name || 'Unknown';
     const key = `${date}-${userName}`;
 
@@ -636,7 +636,7 @@ function renderData(logs) {
 
       for (const f of foods) {
         const notes = f.notes ? `<div class="food-notes">"${f.notes}"</div>` : '';
-        const time = new Date(f.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        const time = new Date(f.entry_date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
         foodItems += `
           <div class="food-item" id="entry-${f.id}">
             <div class="food-info">

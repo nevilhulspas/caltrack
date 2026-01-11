@@ -18,10 +18,45 @@ Return this structure:
   "sodium_mg": number,
   "saturated_fat_g": number,
   "food_name": "brief summary of the food",
-  "notes": "any additional context mentioned (e.g., 'felt hungry', 'cheat meal', 'post workout') or null if none"
+  "notes": "any additional context mentioned (e.g., 'felt hungry', 'cheat meal', 'post workout') or null if none",
+  "date_offset_days": number or null,
+  "meal_time": "breakfast" | "lunch" | "dinner" | "snack" | null
 }
 
+For date_offset_days: 0 = today, -1 = yesterday, -2 = two days ago, etc. Set to null if no date mentioned.
+For meal_time: extract if mentioned (e.g., "at breakfast", "for dinner", "lunch"). Set to null if not mentioned.
+
 Use your knowledge of nutrition databases. If weight is given, calculate accordingly. If weight is not given, assume a typical serving size. Only return valid JSON, no other text.`;
+
+function calculateEntryDate(dateOffsetDays: number | null, mealTime: string | null): Date {
+  const now = new Date();
+  const date = new Date(now);
+
+  // Apply date offset
+  if (dateOffsetDays !== null && dateOffsetDays !== 0) {
+    date.setDate(date.getDate() + dateOffsetDays);
+  }
+
+  // Apply meal time (approximate hours)
+  if (mealTime) {
+    switch (mealTime.toLowerCase()) {
+      case 'breakfast':
+        date.setHours(8, 0, 0, 0);
+        break;
+      case 'lunch':
+        date.setHours(12, 30, 0, 0);
+        break;
+      case 'dinner':
+        date.setHours(19, 0, 0, 0);
+        break;
+      case 'snack':
+        date.setHours(15, 0, 0, 0);
+        break;
+    }
+  }
+
+  return date;
+}
 
 // Keywords that trigger undo/revert
 const UNDO_KEYWORDS = ['undo', 'revert', 'delete last', 'remove last', 'cancel last', 'oops'];
@@ -158,6 +193,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Calculate entry date from Claude's response
+    const entryDate = calculateEntryDate(nutrition.date_offset_days, nutrition.meal_time);
+
     // Store in Supabase
     const { error: dbError } = await supabase.from("food_logs").insert({
       raw_input: food,
@@ -173,6 +211,7 @@ Deno.serve(async (req: Request) => {
       notes: nutrition.notes,
       user_name: user || "Unknown",
       is_deleted: false,
+      entry_date: entryDate.toISOString(),
     });
 
     if (dbError) {

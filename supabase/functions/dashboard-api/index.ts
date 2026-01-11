@@ -53,8 +53,8 @@ Deno.serve(async (req: Request) => {
     .from("food_logs")
     .select("*")
     .eq("is_deleted", false)
-    .gte("created_at", new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
-    .order("created_at", { ascending: false });
+    .gte("entry_date", new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
+    .order("entry_date", { ascending: false });
 
   if (user) {
     query = query.eq("user_name", user);
