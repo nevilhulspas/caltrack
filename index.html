@@ -220,6 +220,7 @@ h1 span {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
+  padding-right: 56px;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
   gap: 12px;
@@ -242,7 +243,7 @@ h1 span {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  width: 64px;
+  min-width: 64px;
   text-align: center;
 }
 
@@ -351,7 +352,7 @@ h1 span {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 64px;
+  min-width: 64px;
   text-align: center;
 }
 
@@ -430,6 +431,7 @@ h1 span {
 
   .user-header {
     padding: 16px 18px 20px;
+    padding-right: 18px;
     flex-direction: column;
     align-items: flex-start;
     background: rgba(255, 255, 255, 0.03);
@@ -488,21 +490,28 @@ h1 span {
 
   .delete-btn {
     opacity: 1;
-    top: 12px;
-    right: 12px;
+    top: 16px;
+    right: 16px;
     transform: none;
-    background: transparent;
+    background: rgba(255, 255, 255, 0.05);
     color: var(--text-muted);
+    border-radius: 6px;
   }
 
   .delete-btn:hover,
   .delete-btn:active {
-    background: transparent;
-    color: var(--text-muted);
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
   }
 
   .food-info {
     padding-right: 40px;
+  }
+
+  .user-totals .stat,
+  .food-macros .macro {
+    min-width: auto;
+    flex: 1;
   }
 }
 </style>
