@@ -174,31 +174,16 @@ h1 span {
   box-shadow: 0 2px 12px rgba(110, 231, 183, 0.35);
 }
 
-.date-section {
-  margin-bottom: 32px;
+.user-section {
+  margin-bottom: 20px;
   animation: fadeSlideIn 0.5s ease-out backwards;
 }
 
-.date-section:nth-child(1) { animation-delay: 0.15s; }
-.date-section:nth-child(2) { animation-delay: 0.2s; }
-.date-section:nth-child(3) { animation-delay: 0.25s; }
-.date-section:nth-child(4) { animation-delay: 0.3s; }
-.date-section:nth-child(5) { animation-delay: 0.35s; }
-
-.date-header {
-  font-family: 'Fraunces', serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 16px;
-  padding-left: 4px;
-}
-
-.user-section {
-  margin-bottom: 20px;
-}
+.user-section:nth-child(1) { animation-delay: 0.15s; }
+.user-section:nth-child(2) { animation-delay: 0.2s; }
+.user-section:nth-child(3) { animation-delay: 0.25s; }
+.user-section:nth-child(4) { animation-delay: 0.3s; }
+.user-section:nth-child(5) { animation-delay: 0.35s; }
 
 .user-card {
   background: var(--bg-card);
@@ -226,11 +211,25 @@ h1 span {
   gap: 12px;
 }
 
+.user-info {
+  display: flex;
+  align-items: baseline;
+}
+
 .user-name {
   font-family: 'Fraunces', serif;
   font-weight: 600;
   font-size: 20px;
   color: var(--text-primary);
+}
+
+.user-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-left: 12px;
 }
 
 .user-totals {
@@ -371,8 +370,7 @@ h1 span {
 
 .macro.cal .macro-value {
   font-size: 16px;
-  color: var(--accent-coral);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .empty, .loading {
@@ -690,7 +688,10 @@ function renderData(logs) {
         <div class="user-section">
           <div class="user-card">
             <div class="user-header">
-              <span class="user-name">${userName}</span>
+              <div class="user-info">
+                <span class="user-name">${userName}</span>
+                <span class="user-date">${date}</span>
+              </div>
               <div class="user-totals">
                 <div class="stat calories">
                   <span class="stat-value">${Math.round(t.calories)}</span>
@@ -714,7 +715,7 @@ function renderData(logs) {
           </div>
         </div>`;
     }
-    html += `<div class="date-section"><div class="date-header">${date}</div>${userSections}</div>`;
+    html += userSections;
   }
 
   content.innerHTML = html;
