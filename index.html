@@ -304,11 +304,40 @@ h1 span {
   margin-top: 6px;
 }
 
+.food-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .food-macros {
   display: flex;
   gap: 16px;
   align-items: center;
   flex-shrink: 0;
+}
+
+.delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.food-item:hover .delete-btn {
+  opacity: 1;
+}
+
+.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
 }
 
 .macro {
@@ -441,6 +470,23 @@ h1 span {
     min-width: auto;
     flex: 1;
   }
+
+  .food-actions {
+    width: 100%;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .delete-btn {
+    opacity: 1;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+  }
+
+  .food-item {
+    position: relative;
+  }
 }
 </style>
 </head>
@@ -504,6 +550,23 @@ function updateButtons() {
   document.getElementById('btn-30').className = currentDays === 30 ? 'active' : '';
 }
 
+async function deleteEntry(id) {
+  if (!confirm('Delete this entry?')) return;
+
+  try {
+    const res = await fetch(`${API_URL}?id=${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      // Remove from local data and re-render
+      allLogs = allLogs.filter(log => log.id !== id);
+      renderData(allLogs);
+    } else {
+      alert('Failed to delete entry');
+    }
+  } catch (e) {
+    alert('Error deleting entry');
+  }
+}
+
 async function fetchData() {
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading">Loading</div>';
@@ -563,29 +626,36 @@ function renderData(logs) {
         const notes = f.notes ? `<div class="food-notes">"${f.notes}"</div>` : '';
         const time = new Date(f.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
         foodItems += `
-          <div class="food-item">
+          <div class="food-item" id="entry-${f.id}">
             <div class="food-info">
               <div class="food-name">${f.food_name || f.raw_input}</div>
               ${notes}
               <div class="food-time">${time}</div>
             </div>
-            <div class="food-macros">
-              <div class="macro cal">
-                <span class="macro-value">${f.calories || 0}</span>
-                <span class="macro-label">kcal</span>
+            <div class="food-actions">
+              <div class="food-macros">
+                <div class="macro cal">
+                  <span class="macro-value">${f.calories || 0}</span>
+                  <span class="macro-label">kcal</span>
+                </div>
+                <div class="macro">
+                  <span class="macro-value">${f.protein_g || 0}g</span>
+                  <span class="macro-label">protein</span>
+                </div>
+                <div class="macro">
+                  <span class="macro-value">${f.carbs_g || 0}g</span>
+                  <span class="macro-label">carbs</span>
+                </div>
+                <div class="macro">
+                  <span class="macro-value">${f.fat_g || 0}g</span>
+                  <span class="macro-label">fat</span>
+                </div>
               </div>
-              <div class="macro">
-                <span class="macro-value">${f.protein_g || 0}g</span>
-                <span class="macro-label">protein</span>
-              </div>
-              <div class="macro">
-                <span class="macro-value">${f.carbs_g || 0}g</span>
-                <span class="macro-label">carbs</span>
-              </div>
-              <div class="macro">
-                <span class="macro-value">${f.fat_g || 0}g</span>
-                <span class="macro-label">fat</span>
-              </div>
+              <button class="delete-btn" onclick="deleteEntry('${f.id}')" title="Delete">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                </svg>
+              </button>
             </div>
           </div>`;
       }
