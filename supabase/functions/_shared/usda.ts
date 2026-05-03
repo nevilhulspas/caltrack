@@ -48,22 +48,24 @@ interface FdcSearchHit {
 /**
  * Search USDA FDC for the top matches to a query.
  *
- * Page size kept small — we only need the top result for matching. Excludes
- * Survey (FNDDS) which has odd cooked-state inconsistencies.
+ * Two-pass strategy: try the curated USDA datasets (Foundation + SR Legacy)
+ * first. Branded foods cram keywords into descriptions and dominate score
+ * sorts, so we only fall through to Branded when curated returns nothing.
+ *
+ * Excludes Survey (FNDDS) which has odd cooked-state inconsistencies.
  */
 export async function searchFoods(query: string, limit = 5): Promise<FdcFood[]> {
+  const curated = await searchByType(query, ["Foundation", "SR Legacy"], limit);
+  if (curated.length > 0 && curated[0].caloriesPer100g > 0) return curated;
+  return await searchByType(query, ["Branded"], limit);
+}
+
+async function searchByType(query: string, dataType: string[], limit: number): Promise<FdcFood[]> {
   const url = `${FDC_BASE}/foods/search?api_key=${API_KEY}`;
   const resp = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      query,
-      pageSize: limit,
-      // Foundation + SR Legacy first (curated), then Branded.
-      dataType: ["Foundation", "SR Legacy", "Branded"],
-      sortBy: "score",
-      sortOrder: "desc",
-    }),
+    body: JSON.stringify({ query, pageSize: limit, dataType, sortBy: "score", sortOrder: "desc" }),
   });
   if (!resp.ok) throw new Error(`FDC search failed (${resp.status}): ${await resp.text()}`);
   const data = await resp.json();
