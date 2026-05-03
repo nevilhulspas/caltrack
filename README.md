@@ -1,16 +1,30 @@
 # CalTrack - Voice Food Logger
 
-Voice-activated food logging for MacroFactor via iOS Shortcuts, Supabase, and Apple Health.
+Voice-activated food logging for MacroFactor via iOS Shortcuts and Supabase.
+Logs **real MacroFactor foods** (USDA + branded DB), with Apple Health as a
+fallback for items that don't match.
 
 ## How It Works
 
 ```
-Speak food → iOS transcribes → Supabase Edge Function → Claude → Apple Health → MacroFactor
-                                        ↓
-                                 Store in database
-                                        ↓
+Speak food → iOS transcribes → parse-food Edge Function
+                                        │
+                       Claude splits into structured items
+                                        │
+                ┌───────────────────────┴───────────────────────┐
+                ▼                                               ▼
+    Typesense match → log real food to              No match → log estimated
+    MacroFactor (Firestore REST)                   entry; iOS Shortcut writes
+                                                   totals to Apple Health,
+                                                   MacroFactor imports them
+                                        │
+                                 Store in Supabase
+                                        ▼
                                     Dashboard
+                          (sync badges + weekly summary)
 ```
+
+For the new MacroFactor sync setup, see [SETUP-MACROFACTOR.md](SETUP-MACROFACTOR.md).
 
 ## Features
 
@@ -27,12 +41,13 @@ Speak food → iOS transcribes → Supabase Edge Function → Claude → Apple H
 
 | Component | Purpose |
 |-----------|---------|
-| iOS Shortcuts | Voice input, Apple Health logging |
-| Supabase Edge Functions | API endpoint, Claude integration |
-| Supabase Database | Food history storage |
+| iOS Shortcuts | Voice input, conditional Apple Health write |
+| Supabase Edge Functions | parse-food (extract → match → log), dashboard-api (read + resync) |
+| Supabase Database | Food history with MF sync status |
 | GitHub Pages | Dashboard hosting |
-| Claude API | Nutrition parsing |
-| Apple Health | Macro storage, MacroFactor sync |
+| Claude API | Splits speech into structured items |
+| MacroFactor (unofficial API) | Real food logging via Firestore + Typesense |
+| Apple Health | Fallback path for unmatched foods |
 
 ## Quick Start
 
@@ -63,6 +78,8 @@ create table food_logs (
 create index food_logs_created_at_idx on food_logs(created_at desc);
 create index food_logs_user_name_idx on food_logs(user_name);
 ```
+
+Then apply [supabase/migrations/20260503_add_macrofactor_sync_columns.sql](supabase/migrations/20260503_add_macrofactor_sync_columns.sql) to add the MF sync tracking columns.
 
 3. Deploy the Edge Functions (see `supabase/functions/`)
 4. Set `ANTHROPIC_API_KEY` in your Supabase project secrets
