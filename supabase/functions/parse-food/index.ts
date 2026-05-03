@@ -112,12 +112,57 @@ async function extractWithClaude(food: string): Promise<Extracted> {
   return JSON.parse(text) as Extracted;
 }
 
-function pickBestMatch(candidates: FdcFood[]): FdcFood | null {
-  if (!candidates.length) return null;
-  const top = candidates[0];
-  // Sanity: skip if calories are 0 — that's usually a malformed FDC entry.
-  if (top.searchScore < MATCH_SCORE_THRESHOLD || top.caloriesPer100g === 0) return null;
-  return top;
+// Ask Claude to pick the best match for a given item from the top FDC
+// candidates. FDC's text-relevance score rewards descriptions that pack in
+// query keywords — so e.g. "chicken breast tenders, breaded, microwaved"
+// outranks "chicken broilers or fryers, breast, meat only, cooked, roasted"
+// for the query "chicken breast cooked." A short LLM rerank fixes this.
+//
+// Returns null if Claude judges no candidate is a good match.
+async function pickBestMatchWithLlm(item: ExtractedItem, candidates: FdcFood[]): Promise<FdcFood | null> {
+  const usable = candidates.filter((c) => c.caloriesPer100g > 0 && c.searchScore >= MATCH_SCORE_THRESHOLD);
+  if (!usable.length) return null;
+  if (usable.length === 1) return usable[0];
+
+  const list = usable
+    .map((c, i) => `${i}: ${c.description}${c.brand ? ` [${c.brand}]` : ""} — ${Math.round(c.caloriesPer100g)} kcal/100g`)
+    .join("\n");
+
+  const prompt = `Pick the best match for the user's food from these USDA FoodData Central candidates.
+
+User said: "${item.query}" (${item.grams}g)
+
+Candidates:
+${list}
+
+Rules:
+- Prefer plain, unprocessed forms unless the user said otherwise (e.g. "chicken breast" should pick plain cooked breast meat, not breaded tenders).
+- Match cooking state when stated.
+- If the user mentioned a specific brand, prefer that brand.
+- If no candidate is a reasonable match, reply "none".
+
+Reply with ONLY the candidate index number (e.g. "2"), or "none". No other text.`;
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": ANTHROPIC_API_KEY!,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 8,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  if (!resp.ok) throw new Error(`Claude rerank error: ${await resp.text()}`);
+  const data = await resp.json();
+  const text = (data.content[0].text as string).trim().toLowerCase();
+  if (text.startsWith("none")) return null;
+  const idx = parseInt(text, 10);
+  if (Number.isNaN(idx) || idx < 0 || idx >= usable.length) return null;
+  return usable[idx];
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -174,7 +219,7 @@ Deno.serve(async (req: Request) => {
       extracted.items.map(async (item) => {
         try {
           const candidates = await searchFoods(item.query);
-          const match = pickBestMatch(candidates);
+          const match = await pickBestMatchWithLlm(item, candidates);
           if (match) {
             const macros = scaleToGrams(match, item.grams);
             return {
