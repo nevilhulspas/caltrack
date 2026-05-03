@@ -46,7 +46,13 @@ Rules:
 - "query" must be a concise noun phrase that would match an entry in the USDA FoodData Central database.
 - Include cooking state when relevant ("cooked", "raw", "grilled") — USDA has both.
 - If grams aren't stated, estimate a realistic single serving in grams.
-- Estimated macros are a fallback in case database lookup fails — make them reasonable.`;
+- Estimated macros are a fallback in case database lookup fails — make them reasonable.
+
+Extracting meal_time and date_offset_days:
+- Listen for explicit meal cues anywhere in the input — "for lunch", "had breakfast", "at dinner", "as a snack", "voor de lunch", "bij het ontbijt", etc. — and set meal_time accordingly. The cue does not have to be at the start.
+- If the input names a specific meal of the day, set meal_time even if no time is given.
+- date_offset_days: 0 = today, -1 = yesterday, -2 = two days ago. Only set when the user explicitly references a past day ("yesterday", "gisteren", "two days ago"). Otherwise null.
+- If no meal cue is mentioned, leave meal_time null.`;
 
 const UNDO_KEYWORDS = ["undo", "revert", "delete last", "remove last", "cancel last", "oops"];
 const isUndoCommand = (t: string) => {
@@ -80,7 +86,18 @@ function calculateEntryDate(dateOffsetDays: number | null, mealTime: string | nu
   if (dateOffsetDays !== null && dateOffsetDays !== 0) {
     date.setDate(date.getDate() + dateOffsetDays);
   }
-  switch (mealTime?.toLowerCase()) {
+  // If no meal_time was extracted, infer one from the current hour so the
+  // dashboard still buckets it sensibly. The dashboard uses the same
+  // boundaries (mealOf): <11 breakfast, <14 lunch, <17 snack, else dinner.
+  let resolved = mealTime?.toLowerCase() || null;
+  if (!resolved) {
+    const h = date.getHours();
+    if (h < 11) resolved = "breakfast";
+    else if (h < 14) resolved = "lunch";
+    else if (h < 17) resolved = "snack";
+    else resolved = "dinner";
+  }
+  switch (resolved) {
     case "breakfast": date.setHours(8, 0, 0, 0); break;
     case "lunch": date.setHours(12, 30, 0, 0); break;
     case "dinner": date.setHours(19, 0, 0, 0); break;

@@ -1089,7 +1089,10 @@ function dayKey(dateStr) {
 }
 
 function mealOf(dateStr) {
-  const h = new Date(dateStr).getHours();
+  // The Edge Function stores canonical meal times in UTC (8 / 12:30 / 15 / 19).
+  // Bucket by UTC hours so meal labels stay correct regardless of the
+  // viewer's local timezone.
+  const h = new Date(dateStr).getUTCHours();
   if (h < 11) return { key: 'breakfast', label: 'Breakfast', order: 0 };
   if (h < 14) return { key: 'lunch', label: 'Lunch', order: 1 };
   if (h < 17) return { key: 'snack', label: 'Snack', order: 2 };
