@@ -448,6 +448,29 @@ body::after {
   color: var(--ink-whisper);
 }
 
+.transcript {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin: 14px 0 6px 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--ink-ghost);
+  line-height: 1.45;
+  position: relative;
+}
+.transcript::before {
+  content: '“';
+  position: absolute;
+  left: -2px;
+  top: -10px;
+  font-size: 26px;
+  font-style: normal;
+  color: var(--ink-ghost);
+  font-family: var(--serif);
+}
+.transcript-list { list-style: none; margin-bottom: 6px; }
+
 .entries { list-style: none; }
 
 .entry {
@@ -1207,18 +1230,49 @@ function renderDay(day) {
     for (const { meal, entries } of meals) {
       // sort entries within a meal by time
       entries.sort((a, b) => new Date(a.entry_date) - new Date(b.entry_date));
-      let mealKcal = 0;
-      let entriesHtml = '';
+
+      // Group entries from the same submission so we can show the original
+      // transcript above its items. One submission = same raw_input AND
+      // created_at within the same minute.
+      const submissions = [];
       for (const e of entries) {
-        entryIdx++;
-        const kcal = r0(e.calories);
-        const p = r0(e.protein_g);
-        const c = r0(e.carbs_g);
-        const f = r0(e.fat_g);
-        dayKcal += kcal; dayP += p; dayC += c; dayF += f;
-        mealKcal += kcal;
-        entriesHtml += renderEntry(e, entryIdx, kcal, p, c, f);
+        const minuteBucket = e.created_at ? e.created_at.slice(0, 16) : '';
+        const key = `${e.raw_input || ''}::${minuteBucket}`;
+        const last = submissions[submissions.length - 1];
+        if (last && last.key === key) last.entries.push(e);
+        else submissions.push({ key, raw_input: e.raw_input || '', entries: [e] });
       }
+
+      let mealKcal = 0;
+      let submissionsHtml = '';
+      for (const sub of submissions) {
+        let entriesHtml = '';
+        for (const e of sub.entries) {
+          entryIdx++;
+          const kcal = r0(e.calories);
+          const p = r0(e.protein_g);
+          const c = r0(e.carbs_g);
+          const f = r0(e.fat_g);
+          dayKcal += kcal; dayP += p; dayC += c; dayF += f;
+          mealKcal += kcal;
+          entriesHtml += renderEntry(e, entryIdx, kcal, p, c, f);
+        }
+        // Skip the transcript line if it's identical to the only entry's
+        // food_name (no value in showing the same string twice).
+        const showTranscript =
+          sub.raw_input &&
+          !(sub.entries.length === 1 && sub.raw_input.trim() === (sub.entries[0].food_name || '').trim());
+        const transcriptHtml = showTranscript
+          ? `<div class="transcript">${escapeHtml(sub.raw_input)}</div>`
+          : '';
+        submissionsHtml += `
+          <div class="transcript-list">
+            ${transcriptHtml}
+            <ul class="entries">${entriesHtml}</ul>
+          </div>
+        `;
+      }
+
       mealsHtml += `
         <div class="meal">
           <div class="meal-head">
@@ -1226,7 +1280,7 @@ function renderDay(day) {
             <span class="ornament"></span>
             <span class="meal-stat">${mealKcal.toLocaleString('en-US')} kcal</span>
           </div>
-          <ul class="entries">${entriesHtml}</ul>
+          ${submissionsHtml}
         </div>
       `;
     }
