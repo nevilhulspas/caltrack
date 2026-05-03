@@ -88,6 +88,37 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // POST ?action=update-meal&id=X  body {meal}
+  // Moves an entry to a different meal slot by rewriting entry_date to the
+  // canonical UTC hour for that meal. Keeps the same calendar date.
+  if (req.method === "POST" && action === "update-meal") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "Missing 'id' parameter" }, 400);
+    const body = await req.json().catch(() => ({}));
+    const meal = String(body.meal || "").toLowerCase();
+    const slot: Record<string, [number, number]> = {
+      breakfast: [8, 0],
+      lunch: [12, 30],
+      snack: [15, 0],
+      dinner: [19, 0],
+    };
+    if (!slot[meal]) return json({ error: "meal must be breakfast|lunch|snack|dinner" }, 400);
+
+    const { data: row, error } = await supabase
+      .from("food_logs").select("id, entry_date").eq("id", id).single();
+    if (error || !row) return json({ error: "Entry not found" }, 404);
+
+    // Preserve the calendar date (UTC) and rewrite the time-of-day.
+    const d = new Date(row.entry_date);
+    const [h, m] = slot[meal];
+    d.setUTCHours(h, m, 0, 0);
+
+    const { error: upErr } = await supabase
+      .from("food_logs").update({ entry_date: d.toISOString() }).eq("id", id);
+    if (upErr) return json({ error: upErr.message }, 500);
+    return json({ status: "ok", meal, entry_date: d.toISOString() });
+  }
+
   // POST ?action=update-grams&id=X  body {grams}
   // Updates only the gram weight. If the row has a stored usda_fdc_id, also
   // recomputes calories/macros from that food's per-100g data. For estimated

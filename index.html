@@ -52,6 +52,36 @@
   /* rhythm */
   --gutter: 28px;
   --max-w:  720px;
+
+  /* warm wash at top of page */
+  --wash:         rgba(255, 226, 175, 0.18);
+}
+
+[data-theme="dark"] {
+  /* midnight cookbook — deep umber paper, warm cream ink */
+  --paper:        #161210;
+  --paper-warm:   #1E1916;
+  --paper-edge:   #0D0A09;
+  --card:         #1E1916;
+  --card-hover:   #2A231F;
+
+  --ink:          #ECE0CB;
+  --ink-soft:     #B5A48B;
+  --ink-whisper:  #786A55;
+  --ink-ghost:    #4A4234;
+
+  --rule:         rgba(236, 224, 203, 0.12);
+  --rule-soft:    rgba(236, 224, 203, 0.05);
+
+  --terracotta:   #DA8463;
+  --terracotta-soft: rgba(218, 132, 99, 0.12);
+  --sage:         #A6BF80;
+  --sage-soft:    rgba(166, 191, 128, 0.12);
+  --saffron:      #E1B461;
+  --saffron-soft: rgba(225, 180, 97, 0.12);
+  --rose:         #CB8472;
+
+  --wash:         rgba(218, 132, 99, 0.10);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -75,6 +105,7 @@ body {
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.4s ease, color 0.4s ease;
 }
 
 /* warm light gradient at top — quiet support, not texture */
@@ -82,10 +113,13 @@ body::after {
   content: '';
   position: fixed;
   top: 0; left: 0; right: 0; height: 360px;
-  background: radial-gradient(ellipse 80% 100% at 50% 0%, rgba(255, 226, 175, 0.18), transparent 75%);
+  background: radial-gradient(ellipse 80% 100% at 50% 0%, var(--wash), transparent 75%);
   pointer-events: none;
   z-index: 0;
+  transition: opacity 0.4s ease;
 }
+
+html { transition: background-color 0.4s ease; background: var(--paper); }
 
 .page {
   max-width: var(--max-w);
@@ -604,7 +638,8 @@ body::after {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: minmax(180px, 0.6fr) 1fr;
-  gap: 28px;
+  grid-template-areas: "meal meal" "grams search";
+  gap: 22px 28px;
   margin-top: 14px;
   padding: 18px 20px 18px;
   background: var(--paper-warm);
@@ -613,6 +648,10 @@ body::after {
   border-radius: 2px;
   animation: fadeInUp 0.28s cubic-bezier(.22,.65,.27,1) both;
 }
+.editor-meal { grid-area: meal; }
+.editor-grams { grid-area: grams; }
+.editor-search { grid-area: search; }
+
 .editor h4 {
   font-family: var(--mono);
   font-size: 10px;
@@ -621,6 +660,34 @@ body::after {
   letter-spacing: 0.18em;
   color: var(--ink-whisper);
   margin-bottom: 10px;
+}
+
+.meal-toggle {
+  display: inline-flex;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--card);
+  overflow: hidden;
+}
+.meal-toggle button {
+  background: none;
+  border: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-soft);
+  padding: 8px 14px;
+  cursor: pointer;
+  border-right: 1px solid var(--rule-soft);
+  transition: all 0.18s ease;
+}
+.meal-toggle button:last-child { border-right: none; }
+.meal-toggle button:hover { color: var(--terracotta); }
+.meal-toggle button.active {
+  background: var(--ink);
+  color: var(--paper-warm);
 }
 .editor-grams {
   display: flex;
@@ -844,11 +911,14 @@ body::after {
 
   .editor {
     grid-template-columns: 1fr;
+    grid-template-areas: "meal" "grams" "search";
     gap: 22px;
     padding: 16px;
     margin-top: 12px;
   }
   .editor-grams .save-grams { margin-left: 12px; }
+  .meal-toggle { width: 100%; }
+  .meal-toggle button { flex: 1; padding: 8px 6px; font-size: 9.5px; letter-spacing: 0.1em; }
 }
 </style>
 </head>
@@ -903,6 +973,22 @@ let currentDays = 7;
 let allLogs = [];
 
 document.getElementById('masthead-year').textContent = new Date().getFullYear();
+
+/* ───────── Auto theme by device clock ─────────
+ * Light from 07:00 to 19:00 local; dark otherwise. Re-evaluated every minute
+ * and on visibility change so a long-running tab flips at sundown without
+ * needing a refresh. iOS status bar follows via the meta theme-color tag.
+ */
+function applyAutoTheme() {
+  const h = new Date().getHours();
+  const dark = h < 7 || h >= 19;
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', dark ? '#161210' : '#F4EEDF');
+}
+applyAutoTheme();
+setInterval(applyAutoTheme, 60_000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) applyAutoTheme(); });
 
 function toggleUser(user) {
   if (selectedUsers.has(user)) {
@@ -1035,6 +1121,20 @@ async function relink(id, fdcId) {
     await fetchData();
   } catch (e) {
     alert('Relink failed: ' + (e.message || e));
+  }
+}
+
+async function updateMeal(id, meal) {
+  try {
+    const res = await fetch(`${API_URL}?action=update-meal&id=${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ meal }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await fetchData();
+  } catch (e) {
+    alert('Could not change meal: ' + (e.message || e));
   }
 }
 
@@ -1346,8 +1446,20 @@ function renderEditor(e) {
   const currentGrams = e.usda_grams ? r0(e.usda_grams) : 100;
   const fdcId = e.usda_fdc_id || null;
   const isMatched = e.usda_status === 'matched';
+  const meal = mealOf(e.entry_date).key;
+  const mealBtn = (k, label) =>
+    `<button class="${meal === k ? 'active' : ''}" onclick="updateMeal('${e.id}', '${k}')">${label}</button>`;
   return `
     <div class="editor" onclick="event.stopPropagation()">
+      <div class="editor-meal">
+        <h4>Meal</h4>
+        <div class="meal-toggle">
+          ${mealBtn('breakfast', 'Breakfast')}
+          ${mealBtn('lunch', 'Lunch')}
+          ${mealBtn('snack', 'Snack')}
+          ${mealBtn('dinner', 'Dinner')}
+        </div>
+      </div>
       <div class="editor-grams">
         <h4>Quantity</h4>
         <div class="row">
