@@ -1955,19 +1955,12 @@ async function deleteRecipe(id) {
   renderModal();
 }
 
-/* Promote a logged submission into a recipe */
-
-async function promoteToRecipe(id) {
-  const name = prompt('Save this as meal — name?');
-  if (!name) return;
-  const res = await fetch(`${API_URL}?action=promote-submission&id=${id}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name.trim() }),
-  });
-  if (!res.ok) { alert('Save failed: ' + (await res.text())); return; }
+/* Open the library modal directly onto a recipe's edit form. */
+async function editMealFromEntry(recipeId) {
   await loadLibrary(true);
-  alert('Saved to library.');
+  modalState = { tab: 'meals', view: 'list' };
+  await renderModal();
+  editRecipe(recipeId);
 }
 
 async function updateMeal(id, meal) {
@@ -2335,9 +2328,11 @@ function renderEditor(e) {
         <h4>Replace with another USDA food</h4>
         <input class="search-input" type="search" placeholder="Search USDA FoodData Central…" oninput="onSearchInput('${e.id}')" autocomplete="off" />
         <ul class="editor-results"></ul>
-        <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--rule-soft);">
-          <button class="add-btn secondary" onclick="event.preventDefault();promoteToRecipe('${e.id}')" type="button">★ Save submission as a meal</button>
-        </div>
+        ${e.recipe_id ? `
+          <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--rule-soft);">
+            <button class="add-btn secondary" onclick="event.preventDefault();editMealFromEntry('${e.recipe_id}')" type="button">★ Edit meal</button>
+          </div>
+        ` : ''}
       </div>
     </div>
   `;
