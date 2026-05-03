@@ -542,15 +542,15 @@ body::after {
 
 .entry-actions {
   position: absolute;
-  top: 50%;
+  top: 14px;
   right: -8px;
-  transform: translate(100%, -50%);
+  transform: translateX(100%);
   display: flex;
   gap: 4px;
   opacity: 0;
   transition: opacity 0.2s ease;
 }
-.entry:hover .entry-actions { opacity: 1; }
+.entry:hover .entry-actions, .entry.expanded .entry-actions { opacity: 1; }
 .entry-action {
   background: transparent;
   border: 1px solid var(--rule);
@@ -566,8 +566,167 @@ body::after {
 }
 .entry-action:hover {
   background: var(--card);
-  color: var(--rose);
-  border-color: var(--rose);
+  color: var(--terracotta);
+  border-color: var(--terracotta);
+}
+.entry-action.delete:hover { color: var(--rose); border-color: var(--rose); }
+.entry.expanded .entry-action.edit {
+  background: var(--card);
+  color: var(--terracotta);
+  border-color: var(--terracotta);
+}
+
+/* ───────── Inline edit panel ───────── */
+
+.editor {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.6fr) 1fr;
+  gap: 28px;
+  margin-top: 14px;
+  padding: 18px 20px 18px;
+  background: var(--paper-warm);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--terracotta);
+  border-radius: 2px;
+  animation: fadeInUp 0.28s cubic-bezier(.22,.65,.27,1) both;
+}
+.editor h4 {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--ink-whisper);
+  margin-bottom: 10px;
+}
+.editor-grams {
+  display: flex;
+  flex-direction: column;
+}
+.editor-grams .row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.editor-grams input {
+  width: 90px;
+  padding: 6px 10px;
+  font-family: var(--serif);
+  font-size: 19px;
+  font-style: italic;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--card);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.18s ease;
+}
+.editor-grams input:focus { border-color: var(--terracotta); }
+.editor-grams .unit {
+  font-family: var(--serif);
+  font-size: 14px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.editor-grams .save-grams,
+.editor-search .save-search {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 500;
+  background: var(--ink);
+  color: var(--paper-warm);
+  border: none;
+  border-radius: 2px;
+  padding: 7px 14px;
+  margin-left: auto;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+.editor-grams .save-grams:hover,
+.editor-search .save-search:hover { background: var(--terracotta); }
+.editor-grams .save-grams[disabled] { background: var(--ink-ghost); cursor: not-allowed; }
+.editor-grams .hint {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-whisper);
+  margin-top: 8px;
+}
+
+.editor-search {
+  display: flex;
+  flex-direction: column;
+}
+.editor-search input {
+  width: 100%;
+  padding: 8px 12px;
+  font-family: var(--serif);
+  font-size: 15px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--card);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.18s ease;
+}
+.editor-search input::placeholder { color: var(--ink-ghost); font-style: italic; }
+.editor-search input:focus { border-color: var(--terracotta); }
+.editor-results {
+  list-style: none;
+  margin-top: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  border-top: 1px solid var(--rule-soft);
+}
+.editor-results:empty { display: none; }
+.editor-result {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--rule-soft);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.editor-result:last-child { border-bottom: none; }
+.editor-result:hover { background: var(--card-hover); margin-inline: -8px; padding-inline: 12px; }
+.editor-result-name {
+  font-family: var(--serif);
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.3;
+}
+.editor-result-name .brand {
+  color: var(--ink-soft);
+  font-style: italic;
+  margin-left: 4px;
+}
+.editor-result-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-whisper);
+  align-self: end;
+  white-space: nowrap;
+}
+.editor-result-meta b {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--terracotta);
+  margin-right: 3px;
+}
+.editor-results .none {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-whisper);
+  padding: 10px 4px;
 }
 
 /* ──────────────────────────── States ──────────────────────────── */
@@ -660,6 +819,14 @@ body::after {
     grid-row: 2 / 3;
     margin-left: auto;
   }
+
+  .editor {
+    grid-template-columns: 1fr;
+    gap: 22px;
+    padding: 16px;
+    margin-top: 12px;
+  }
+  .editor-grams .save-grams { margin-left: 12px; }
 }
 </style>
 </head>
@@ -757,6 +924,96 @@ async function resyncEntry(id) {
     if (res.ok) fetchData();
     else alert('Resync failed');
   } catch (e) { alert('Resync error'); }
+}
+
+/* ───────── Edit panel ───────── */
+
+let expandedId = null;
+let searchAbort = null;
+let searchTimer = null;
+
+function toggleEditor(id) {
+  expandedId = expandedId === id ? null : id;
+  renderData(allLogs);
+}
+
+async function saveGrams(id) {
+  const input = document.querySelector(`#entry-${id} .grams-input`);
+  if (!input) return;
+  const grams = Number(input.value);
+  if (!Number.isFinite(grams) || grams <= 0) {
+    input.style.borderColor = 'var(--rose)';
+    return;
+  }
+  const btn = document.querySelector(`#entry-${id} .save-grams`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const res = await fetch(`${API_URL}?action=update-grams&id=${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ grams }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    expandedId = null;
+    await fetchData();
+  } catch (e) {
+    alert('Save failed: ' + (e.message || e));
+    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+  }
+}
+
+function onSearchInput(id) {
+  const input = document.querySelector(`#entry-${id} .search-input`);
+  const list = document.querySelector(`#entry-${id} .editor-results`);
+  if (!input || !list) return;
+  const q = input.value.trim();
+  if (searchTimer) clearTimeout(searchTimer);
+  if (searchAbort) searchAbort.abort();
+  if (q.length < 2) { list.innerHTML = ''; return; }
+  searchTimer = setTimeout(async () => {
+    searchAbort = new AbortController();
+    try {
+      const res = await fetch(`${API_URL}?action=search&q=${encodeURIComponent(q)}`, {
+        signal: searchAbort.signal,
+      });
+      const data = await res.json();
+      renderSearchResults(id, data.results || []);
+    } catch (e) {
+      if (e.name !== 'AbortError') console.error('Search error', e);
+    }
+  }, 220);
+}
+
+function renderSearchResults(id, results) {
+  const list = document.querySelector(`#entry-${id} .editor-results`);
+  if (!list) return;
+  if (!results.length) {
+    list.innerHTML = '<li class="none">No matches.</li>';
+    return;
+  }
+  list.innerHTML = results.map((r) => `
+    <li class="editor-result" onclick="relink('${id}', ${r.fdc_id})">
+      <span class="editor-result-name">
+        ${escapeHtml(r.name)}${r.brand ? `<span class="brand">— ${escapeHtml(r.brand)}</span>` : ''}
+      </span>
+      <span class="editor-result-meta"><b>${r.kcal_per_100g}</b>kcal / 100g</span>
+    </li>
+  `).join('');
+}
+
+async function relink(id, fdcId) {
+  try {
+    const res = await fetch(`${API_URL}?action=relink&id=${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fdc_id: fdcId }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    expandedId = null;
+    await fetchData();
+  } catch (e) {
+    alert('Relink failed: ' + (e.message || e));
+  }
 }
 
 async function fetchData() {
@@ -998,12 +1255,13 @@ function renderDay(day) {
 function renderEntry(e, idx, kcal, p, c, f) {
   const grams = e.usda_grams ? `<span class="grams">${r0(e.usda_grams)}g</span>` : '';
   const estimated = e.usda_status && e.usda_status !== 'matched'
-    ? `<span class="estimated" onclick="resyncEntry('${e.id}')" title="Click to retry USDA match">estimated</span>`
+    ? `<span class="estimated" onclick="event.stopPropagation();resyncEntry('${e.id}')" title="Click to retry USDA match">estimated</span>`
     : '';
   const notes = e.notes ? `<span class="notes">"${escapeHtml(e.notes)}"</span>` : '';
   const metaParts = [estimated, grams, notes].filter(Boolean).join('');
+  const isExpanded = expandedId === e.id;
   return `
-    <li class="entry" id="entry-${e.id}">
+    <li class="entry${isExpanded ? ' expanded' : ''}" id="entry-${e.id}">
       <span class="num">${String(idx).padStart(2, '0')}</span>
       <div class="entry-body">
         <span class="entry-name">${escapeHtml(e.food_name || e.raw_input)}</span>
@@ -1016,11 +1274,43 @@ function renderEntry(e, idx, kcal, p, c, f) {
         </span>
       </div>
       <div class="entry-actions">
-        <button class="entry-action" onclick="deleteEntry('${e.id}')" title="Delete" aria-label="Delete entry">
+        <button class="entry-action edit" onclick="toggleEditor('${e.id}')" title="${isExpanded ? 'Close editor' : 'Edit'}" aria-label="Edit entry">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="entry-action delete" onclick="deleteEntry('${e.id}')" title="Delete" aria-label="Delete entry">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
         </button>
       </div>
+      ${isExpanded ? renderEditor(e) : ''}
     </li>
+  `;
+}
+
+function renderEditor(e) {
+  const currentGrams = e.usda_grams ? r0(e.usda_grams) : 100;
+  const fdcId = e.usda_fdc_id || null;
+  const isMatched = e.usda_status === 'matched';
+  return `
+    <div class="editor" onclick="event.stopPropagation()">
+      <div class="editor-grams">
+        <h4>Quantity</h4>
+        <div class="row">
+          <input class="grams-input" type="number" min="1" step="1" value="${currentGrams}" />
+          <span class="unit">g</span>
+          <button class="save-grams" onclick="saveGrams('${e.id}')">Save</button>
+        </div>
+        <div class="hint">${
+          isMatched
+            ? `Macros recompute from USDA <em>${escapeHtml(e.food_name || '')}</em>${fdcId ? ` <span style="color:var(--ink-ghost)">(FDC ${escapeHtml(fdcId)})</span>` : ''}.`
+            : `Estimated entry — only the gram weight changes; macros stay as Claude's guess.`
+        }</div>
+      </div>
+      <div class="editor-search">
+        <h4>Replace with another USDA food</h4>
+        <input class="search-input" type="search" placeholder="Search USDA FoodData Central…" oninput="onSearchInput('${e.id}')" autocomplete="off" />
+        <ul class="editor-results"></ul>
+      </div>
+    </div>
   `;
 }
 
