@@ -1331,19 +1331,26 @@ function renderDay(day) {
     let mealsHtml = '';
     let entryIdx = 0;
     for (const { meal, entries } of meals) {
-      // sort entries within a meal by time
-      entries.sort((a, b) => new Date(a.entry_date) - new Date(b.entry_date));
-
-      // Group entries from the same submission so we can show the original
-      // transcript above its items. One submission = same raw_input AND
-      // created_at within the same minute.
-      const submissions = [];
+      // Group entries by submission first (raw_input + minute bucket of
+      // created_at) so the transcript appears once per spoken entry and all
+      // its items stay together. Sorting by entry_date alone interleaves
+      // submissions because parse-food stores the same canonical meal hour
+      // for every item.
+      const subMap = new Map();
       for (const e of entries) {
         const minuteBucket = e.created_at ? e.created_at.slice(0, 16) : '';
         const key = `${e.raw_input || ''}::${minuteBucket}`;
-        const last = submissions[submissions.length - 1];
-        if (last && last.key === key) last.entries.push(e);
-        else submissions.push({ key, raw_input: e.raw_input || '', entries: [e] });
+        if (!subMap.has(key)) {
+          subMap.set(key, { key, raw_input: e.raw_input || '', entries: [], firstCreated: e.created_at });
+        }
+        subMap.get(key).entries.push(e);
+      }
+      // Submissions ordered by when they were actually logged.
+      const submissions = [...subMap.values()].sort(
+        (a, b) => new Date(a.firstCreated) - new Date(b.firstCreated),
+      );
+      for (const sub of submissions) {
+        sub.entries.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
       }
 
       let mealKcal = 0;
