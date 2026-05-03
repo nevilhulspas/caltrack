@@ -699,7 +699,15 @@ body::after {
 </div>
 
 <script>
-const API_URL = '__API_URL__';
+// `__API_URL__` is replaced at deploy time by .github/workflows/deploy.yml.
+// In local dev / preview, the literal placeholder remains — fall back to the
+// public production endpoint so the dashboard works without the build step.
+// The split-string keeps sed from replacing this reference too.
+const API_URL_PLACEHOLDER = '__' + 'API_URL__';
+const INJECTED_API_URL = '__API_URL__';
+const API_URL = INJECTED_API_URL === API_URL_PLACEHOLDER
+  ? 'https://ymstbwfufjysoanzfnjm.supabase.co/functions/v1/dashboard-api'
+  : INJECTED_API_URL;
 
 let selectedUsers = new Set(['Nevil', 'Malou']);
 let currentDays = 7;
