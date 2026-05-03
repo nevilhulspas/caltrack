@@ -129,7 +129,14 @@ function calculateEntryDate(dateOffsetDays: number | null, mealTime: string | nu
   return date;
 }
 
-async function extractWithClaude(food: string): Promise<Extracted> {
+async function extractWithClaude(food: string, libraryNames: string[] = []): Promise<Extracted> {
+  // Tell Claude about the user's saved library so it doesn't split named
+  // meals (e.g. "Nevils protein meal") into generic ingredients. If any of
+  // these names appear in the input — even with minor variations from
+  // speech-to-text — Claude must preserve them as a single item.
+  const librarySection = libraryNames.length
+    ? `\n\nThe user has saved these meal & custom-food names in their library:\n${libraryNames.map((n) => `- ${n}`).join("\n")}\n\nIf the input mentions any of them (allow loose matching for spelling, possessives, plurals, or speech-to-text noise — e.g. "Neville's" matches "Nevils", "protein shake" matches "Protein Shake"), output that saved name as ONE single item with query set to the EXACT saved name. Do not split a saved meal into its ingredients. Use grams the user explicitly stated, otherwise leave grams as 0.`
+    : "";
   const resp = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -140,7 +147,7 @@ async function extractWithClaude(food: string): Promise<Extracted> {
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
       max_tokens: 800,
-      messages: [{ role: "user", content: `${EXTRACT_PROMPT}\n\nFood: ${food}` }],
+      messages: [{ role: "user", content: `${EXTRACT_PROMPT}${librarySection}\n\nFood: ${food}` }],
     }),
   });
   if (!resp.ok) throw new Error(`Claude error: ${await resp.text()}`);
@@ -306,7 +313,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // 1. Claude splits the input into structured items + meal metadata.
-    const extracted = await extractWithClaude(food);
+    //    Pass library names so Claude preserves saved meals as single items
+    //    instead of inventing generic ingredients for them.
+    const extracted = await extractWithClaude(food, library.map((l) => l.name));
     const entryDate = calculateEntryDate(extracted.date_offset_days, extracted.meal_time);
 
     // 2. Per item: try the user's library first (custom foods + meals);
