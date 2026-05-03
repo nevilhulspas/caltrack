@@ -180,10 +180,15 @@ html { transition: background-color 0.4s ease; background: var(--paper); }
   letter-spacing: 0.005em;
 }
 
-.refresh-btn {
+.toolbar-btns {
   position: absolute;
   top: 32px;
   right: var(--gutter);
+  display: flex;
+  gap: 8px;
+  z-index: 2;
+}
+.icon-btn {
   background: transparent;
   border: 1px solid var(--rule);
   border-radius: 50%;
@@ -194,14 +199,400 @@ html { transition: background-color 0.4s ease; background: var(--paper); }
   align-items: center;
   justify-content: center;
   transition: all 0.25s ease;
-  z-index: 2;
+  padding: 0;
 }
-.refresh-btn:hover {
+.icon-btn:hover {
   background: var(--card);
   color: var(--terracotta);
   border-color: var(--terracotta);
 }
-.refresh-btn:active svg { animation: spin 0.6s ease; }
+.icon-btn.refresh-btn:active svg { animation: spin 0.6s ease; }
+
+/* ───────── Library badge on entries ───────── */
+.entry-meta .lib-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--saffron);
+  border-bottom: 1px dotted var(--saffron);
+  padding-bottom: 1px;
+}
+.entry-meta .lib-badge.recipe { color: var(--terracotta); border-color: var(--terracotta); }
+.entry-meta .lib-badge.custom { color: var(--sage); border-color: var(--sage); }
+
+/* ───────── Library modal ───────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 20, 12, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 60px 20px;
+  overflow-y: auto;
+  animation: fadeIn 0.2s ease both;
+}
+[data-theme="dark"] .modal-backdrop { background: rgba(0, 0, 0, 0.7); }
+
+.modal {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  width: 100%;
+  max-width: 760px;
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.45);
+  position: relative;
+  animation: fadeInUp 0.3s cubic-bezier(.22,.65,.27,1) both;
+}
+.modal::before {
+  content: '';
+  position: absolute;
+  top: -1px; left: 36px; right: 36px;
+  height: 3px;
+  background: var(--terracotta);
+}
+.modal-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 28px 32px 20px;
+  border-bottom: 1px solid var(--rule);
+}
+.modal-head h2 {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 32px;
+  letter-spacing: -0.015em;
+}
+.modal-head h2 em { color: var(--terracotta); font-style: italic; }
+.modal-close {
+  background: none;
+  border: none;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 6px 8px;
+}
+.modal-close:hover { color: var(--terracotta); }
+
+.modal-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--rule);
+}
+.modal-tabs button {
+  background: none;
+  border: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-whisper);
+  cursor: pointer;
+  padding: 14px 18px;
+  border-bottom: 1.5px solid transparent;
+  margin-bottom: -1px;
+}
+.modal-tabs button.active {
+  color: var(--terracotta);
+  border-bottom-color: var(--terracotta);
+}
+.modal-tabs button:hover:not(.active) { color: var(--ink-soft); }
+
+.modal-body { padding: 24px 32px 32px; }
+.modal-empty {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--ink-whisper);
+  text-align: center;
+  padding: 32px 0 24px;
+}
+
+.lib-list { list-style: none; }
+.lib-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.lib-row:last-child { border-bottom: none; }
+.lib-row .name {
+  font-family: var(--serif);
+  font-size: 17px;
+  color: var(--ink);
+}
+.lib-row .name .brand {
+  color: var(--ink-soft);
+  font-style: italic;
+  margin-left: 4px;
+  font-size: 14px;
+}
+.lib-row .meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-whisper);
+  letter-spacing: 0.04em;
+}
+.lib-row .meta b {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--terracotta);
+  margin-right: 2px;
+}
+.lib-row .acts { display: flex; gap: 4px; }
+.lib-row .acts button {
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  width: 26px; height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--ink-soft);
+  padding: 0;
+  transition: all 0.18s ease;
+}
+.lib-row .acts button:hover { color: var(--terracotta); border-color: var(--terracotta); }
+.lib-row .acts button.del:hover { color: var(--rose); border-color: var(--rose); }
+
+.add-btn {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 500;
+  background: var(--ink);
+  color: var(--paper-warm);
+  border: none;
+  border-radius: 2px;
+  padding: 9px 16px;
+  cursor: pointer;
+  margin-bottom: 18px;
+  transition: background 0.18s ease;
+}
+.add-btn:hover { background: var(--terracotta); }
+.add-btn.secondary {
+  background: transparent;
+  color: var(--ink-soft);
+  border: 1px solid var(--rule);
+}
+.add-btn.secondary:hover {
+  background: var(--card);
+  color: var(--terracotta);
+  border-color: var(--terracotta);
+}
+
+/* Forms */
+.form { display: grid; gap: 14px; }
+.form-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  align-items: center;
+  gap: 14px;
+}
+.form-row label {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-whisper);
+  font-weight: 500;
+}
+.form-row input, .form-row textarea {
+  font-family: var(--serif);
+  font-size: 15px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 7px 10px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.18s ease;
+  width: 100%;
+}
+.form-row input:focus, .form-row textarea:focus { border-color: var(--terracotta); }
+.form-row.macros {
+  grid-template-columns: 130px repeat(4, 1fr);
+  gap: 8px 14px;
+}
+.form-row.macros label { grid-column: 1 / 2; }
+.form-row.macros .group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.form-row.macros .group span {
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-whisper);
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+.form-cancel {
+  background: none;
+  border: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-whisper);
+  cursor: pointer;
+  padding: 8px 12px;
+}
+.form-cancel:hover { color: var(--ink-soft); }
+.form-save {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 500;
+  background: var(--ink);
+  color: var(--paper-warm);
+  border: none;
+  border-radius: 2px;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+.form-save:hover { background: var(--terracotta); }
+
+/* Recipe ingredients editor */
+.ing-rows { display: flex; flex-direction: column; gap: 8px; }
+.ing-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 30px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  position: relative;
+}
+.ing-row .name {
+  font-family: var(--serif);
+  font-size: 14px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ing-row .name .source {
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-whisper);
+  margin-right: 6px;
+}
+.ing-row input.grams {
+  font-family: var(--serif);
+  font-size: 14px;
+  text-align: right;
+  background: var(--paper-warm);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 5px 8px;
+  width: 70px;
+  color: var(--ink);
+  outline: none;
+}
+.ing-row input.grams:focus { border-color: var(--terracotta); }
+.ing-row .ing-del {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-ghost);
+  font-size: 18px;
+  padding: 0;
+  line-height: 1;
+}
+.ing-row .ing-del:hover { color: var(--rose); }
+
+.ing-search {
+  position: relative;
+  margin-top: 6px;
+}
+.ing-search input {
+  width: 100%;
+  font-family: var(--serif);
+  font-size: 14px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 7px 10px;
+  color: var(--ink);
+  outline: none;
+}
+.ing-search input:focus { border-color: var(--terracotta); }
+.ing-search .results {
+  list-style: none;
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--card);
+}
+.ing-search .results:empty { display: none; }
+.ing-search .results li {
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  border-bottom: 1px solid var(--rule-soft);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ing-search .results li:last-child { border-bottom: none; }
+.ing-search .results li:hover { background: var(--card-hover); }
+.ing-search .results li .src {
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-whisper);
+}
+.ing-totals {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-align: right;
+  margin-top: 8px;
+  letter-spacing: 0.04em;
+}
+.ing-totals b {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--terracotta);
+  margin-right: 3px;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* ──────────────────────────── Toolbar ──────────────────────────── */
 
@@ -859,7 +1250,14 @@ html { transition: background-color 0.4s ease; background: var(--paper); }
 
 @media (max-width: 640px) {
   body { padding: 22px 18px 60px; }
-  .refresh-btn { top: 22px; right: 18px; width: 34px; height: 34px; }
+  .toolbar-btns { top: 22px; right: 18px; gap: 6px; }
+  .icon-btn { width: 34px; height: 34px; }
+  .modal { margin: 0 auto; }
+  .modal-head, .modal-tabs, .modal-body { padding-left: 18px; padding-right: 18px; }
+  .form-row { grid-template-columns: 1fr; gap: 6px; }
+  .form-row.macros { grid-template-columns: repeat(2, 1fr); }
+  .form-row.macros label { grid-column: 1 / -1; margin-bottom: 4px; }
+  .modal-backdrop { padding: 30px 14px; }
   .masthead { margin: 16px 0 40px; }
   .wordmark { font-size: 64px; }
   .dek { font-size: 15px; }
@@ -925,12 +1323,22 @@ html { transition: background-color 0.4s ease; background: var(--paper); }
 <body>
 <div class="page">
 
-  <button class="refresh-btn" onclick="location.reload()" aria-label="Refresh" title="Refresh">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
-      <path d="M21 3v5h-5"/>
-    </svg>
-  </button>
+  <div class="toolbar-btns">
+    <button class="icon-btn library-btn" onclick="openLibrary()" aria-label="Library" title="Library">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      </svg>
+    </button>
+    <button class="icon-btn refresh-btn" onclick="location.reload()" aria-label="Refresh" title="Refresh">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+        <path d="M21 3v5h-5"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="modal-root"></div>
 
   <header class="masthead">
     <div class="kicker">est. <span id="masthead-year">2026</span> · vol. i</div>
@@ -1122,6 +1530,444 @@ async function relink(id, fdcId) {
   } catch (e) {
     alert('Relink failed: ' + (e.message || e));
   }
+}
+
+/* ───────── Library (custom foods + meals/recipes) ───────── */
+
+let libraryCache = null;   // { custom_foods: [], recipes: [] }
+let modalState = null;     // { tab, view, editing? } or null when closed
+
+async function loadLibrary(force = false) {
+  if (libraryCache && !force) return libraryCache;
+  const res = await fetch(`${API_URL}?action=library`);
+  if (!res.ok) throw new Error('Library load failed');
+  libraryCache = await res.json();
+  return libraryCache;
+}
+
+async function openLibrary() {
+  modalState = { tab: 'meals', view: 'list' };
+  await renderModal();
+}
+
+function closeModal() {
+  modalState = null;
+  document.getElementById('modal-root').innerHTML = '';
+}
+
+async function renderModal() {
+  if (!modalState) { closeModal(); return; }
+  const lib = await loadLibrary();
+  const root = document.getElementById('modal-root');
+  let body = '';
+  if (modalState.view === 'list') body = renderLibraryList(lib);
+  else if (modalState.view === 'edit-food') body = renderCustomFoodForm(modalState.editing);
+  else if (modalState.view === 'edit-recipe') body = renderRecipeForm(modalState.editing);
+
+  root.innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this) closeModal()">
+      <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-head">
+          <h2>The <em>Library</em></h2>
+          <button class="modal-close" onclick="closeModal()">Close ✕</button>
+        </div>
+        ${modalState.view === 'list' ? `
+          <div class="modal-tabs">
+            <button class="${modalState.tab === 'meals' ? 'active' : ''}" onclick="setLibTab('meals')">Meals</button>
+            <button class="${modalState.tab === 'foods' ? 'active' : ''}" onclick="setLibTab('foods')">Custom foods</button>
+          </div>
+        ` : ''}
+        <div class="modal-body">${body}</div>
+      </div>
+    </div>
+  `;
+}
+
+function setLibTab(tab) {
+  modalState.tab = tab;
+  renderModal();
+}
+
+function renderLibraryList(lib) {
+  if (modalState.tab === 'foods') {
+    const foods = lib.custom_foods || [];
+    return `
+      <button class="add-btn" onclick="newCustomFood()">＋ New custom food</button>
+      ${foods.length === 0
+        ? `<div class="modal-empty">No custom foods yet. Add one for items not in USDA — e.g. a homemade sauce, a specific local product, your hummus.</div>`
+        : `<ul class="lib-list">${foods.map(f => `
+          <li class="lib-row">
+            <span class="name">${escapeHtml(f.name)}${f.brand ? `<span class="brand">— ${escapeHtml(f.brand)}</span>` : ''}</span>
+            <span class="meta"><b>${r0(f.kcal_per_100g)}</b>kcal · ${r0(f.protein_per_100g)}p · ${r0(f.carbs_per_100g)}c · ${r0(f.fat_per_100g)}f / 100g</span>
+            <span class="acts">
+              <button onclick="editCustomFood('${f.id}')" title="Edit" aria-label="Edit">${pencilSvg()}</button>
+              <button class="del" onclick="deleteCustomFood('${f.id}')" title="Delete" aria-label="Delete">${trashSvg()}</button>
+            </span>
+          </li>`).join('')}</ul>`
+      }
+    `;
+  }
+  // meals
+  const recipes = lib.recipes || [];
+  return `
+    <button class="add-btn" onclick="newRecipe()">＋ New meal</button>
+    ${recipes.length === 0
+      ? `<div class="modal-empty">No meals yet. A meal is a named composite of ingredients — e.g. "Nevil's Protein Shake" = whey + milk + banana. Voice logs that mention this name will use the meal's exact macros.</div>`
+      : `<ul class="lib-list">${recipes.map(r => `
+        <li class="lib-row">
+          <span class="name">${escapeHtml(r.name)}${r.ingredients?.length ? `<span class="brand">— ${r.ingredients.length} ingredients</span>` : ''}</span>
+          <span class="meta"><b>${r0(r.total_kcal)}</b>kcal · ${r0(r.total_protein)}p · ${r0(r.total_carbs)}c · ${r0(r.total_fat)}f · ${r0(r.total_grams)}g</span>
+          <span class="acts">
+            <button onclick="editRecipe('${r.id}')" title="Edit" aria-label="Edit">${pencilSvg()}</button>
+            <button class="del" onclick="deleteRecipe('${r.id}')" title="Delete" aria-label="Delete">${trashSvg()}</button>
+          </span>
+        </li>`).join('')}</ul>`
+    }
+  `;
+}
+
+function pencilSvg() {
+  return `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+}
+function trashSvg() {
+  return `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>`;
+}
+
+/* Custom food form */
+
+function newCustomFood() {
+  modalState.view = 'edit-food';
+  modalState.editing = null;
+  renderModal();
+}
+function editCustomFood(id) {
+  const food = (libraryCache.custom_foods || []).find(f => f.id === id);
+  if (!food) return;
+  modalState.view = 'edit-food';
+  modalState.editing = { ...food };
+  renderModal();
+}
+
+function renderCustomFoodForm(food) {
+  const f = food || {
+    name: '', brand: '',
+    kcal_per_100g: 0, protein_per_100g: 0, carbs_per_100g: 0, fat_per_100g: 0,
+    fiber_per_100g: 0, sugar_per_100g: 0, sodium_per_100mg: 0, sat_fat_per_100g: 0,
+    default_grams: '', notes: '',
+  };
+  const isEdit = !!food;
+  return `
+    <button class="add-btn secondary" onclick="setLibView('list')">← Back</button>
+    <form class="form" onsubmit="saveCustomFood(event, ${isEdit ? `'${food.id}'` : 'null'})">
+      <div class="form-row">
+        <label>Name</label>
+        <input name="name" value="${escapeHtml(f.name)}" required placeholder="e.g. Homemade hummus" />
+      </div>
+      <div class="form-row">
+        <label>Brand</label>
+        <input name="brand" value="${escapeHtml(f.brand || '')}" placeholder="optional" />
+      </div>
+      <div class="form-row macros">
+        <label>Per 100g</label>
+        <span class="group"><input type="number" step="0.1" name="kcal_per_100g" value="${f.kcal_per_100g}" /><span>kcal</span></span>
+        <span class="group"><input type="number" step="0.1" name="protein_per_100g" value="${f.protein_per_100g}" /><span>protein g</span></span>
+        <span class="group"><input type="number" step="0.1" name="carbs_per_100g" value="${f.carbs_per_100g}" /><span>carbs g</span></span>
+        <span class="group"><input type="number" step="0.1" name="fat_per_100g" value="${f.fat_per_100g}" /><span>fat g</span></span>
+      </div>
+      <div class="form-row macros">
+        <label>More</label>
+        <span class="group"><input type="number" step="0.1" name="fiber_per_100g" value="${f.fiber_per_100g}" /><span>fiber g</span></span>
+        <span class="group"><input type="number" step="0.1" name="sugar_per_100g" value="${f.sugar_per_100g}" /><span>sugar g</span></span>
+        <span class="group"><input type="number" step="0.1" name="sodium_per_100mg" value="${f.sodium_per_100mg}" /><span>sodium mg</span></span>
+        <span class="group"><input type="number" step="0.1" name="sat_fat_per_100g" value="${f.sat_fat_per_100g}" /><span>sat fat g</span></span>
+      </div>
+      <div class="form-row">
+        <label>Default grams</label>
+        <input type="number" name="default_grams" value="${f.default_grams ?? ''}" placeholder="e.g. 30 (optional)" />
+      </div>
+      <div class="form-row">
+        <label>Notes</label>
+        <textarea name="notes" rows="2" placeholder="optional">${escapeHtml(f.notes || '')}</textarea>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="form-cancel" onclick="setLibView('list')">Cancel</button>
+        <button type="submit" class="form-save">${isEdit ? 'Save changes' : 'Add custom food'}</button>
+      </div>
+    </form>
+  `;
+}
+
+function setLibView(view) {
+  modalState.view = view;
+  modalState.editing = null;
+  renderModal();
+}
+
+async function saveCustomFood(event, id) {
+  event.preventDefault();
+  const fd = new FormData(event.target);
+  const body = Object.fromEntries(fd.entries());
+  // numbers
+  for (const k of ['kcal_per_100g','protein_per_100g','carbs_per_100g','fat_per_100g','fiber_per_100g','sugar_per_100g','sodium_per_100mg','sat_fat_per_100g','default_grams']) {
+    if (body[k] === '' || body[k] === undefined) body[k] = null;
+    else body[k] = Number(body[k]);
+  }
+  const url = id
+    ? `${API_URL}?action=update-custom-food&id=${id}`
+    : `${API_URL}?action=create-custom-food`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) { alert('Save failed: ' + (await res.text())); return; }
+  await loadLibrary(true);
+  modalState.tab = 'foods';
+  setLibView('list');
+}
+
+async function deleteCustomFood(id) {
+  if (!confirm('Delete this custom food?')) return;
+  const res = await fetch(`${API_URL}?action=delete-custom-food&id=${id}`, { method: 'DELETE' });
+  if (!res.ok) { alert('Delete failed'); return; }
+  await loadLibrary(true);
+  renderModal();
+}
+
+/* Recipe form */
+
+let recipeDraft = null; // { name, notes, ingredients: [{source,fdc_id?,custom_food_id?,raw_name,grams,kcal_per_100g,...}] }
+
+function newRecipe() {
+  modalState.view = 'edit-recipe';
+  modalState.editing = null;
+  recipeDraft = { name: '', notes: '', ingredients: [] };
+  renderModal();
+}
+
+function editRecipe(id) {
+  const r = (libraryCache.recipes || []).find(r => r.id === id);
+  if (!r) return;
+  modalState.view = 'edit-recipe';
+  modalState.editing = { id };
+  recipeDraft = {
+    name: r.name,
+    notes: r.notes || '',
+    ingredients: (r.ingredients || []).map(i => ({
+      source: i.fdc_id ? 'usda' : i.custom_food_id ? 'custom' : 'free',
+      fdc_id: i.fdc_id, custom_food_id: i.custom_food_id, raw_name: i.raw_name,
+      grams: Number(i.grams),
+      kcal_per_100g: Number(i.kcal_per_100g), protein_per_100g: Number(i.protein_per_100g),
+      carbs_per_100g: Number(i.carbs_per_100g), fat_per_100g: Number(i.fat_per_100g),
+      fiber_per_100g: Number(i.fiber_per_100g), sugar_per_100g: Number(i.sugar_per_100g),
+      sodium_per_100mg: Number(i.sodium_per_100mg), sat_fat_per_100g: Number(i.sat_fat_per_100g),
+    })),
+  };
+  renderModal();
+}
+
+function recipeTotals() {
+  const t = { grams: 0, kcal: 0, protein: 0, carbs: 0, fat: 0 };
+  for (const i of recipeDraft.ingredients) {
+    const k = (Number(i.grams) || 0) / 100;
+    t.grams += Number(i.grams) || 0;
+    t.kcal += (Number(i.kcal_per_100g) || 0) * k;
+    t.protein += (Number(i.protein_per_100g) || 0) * k;
+    t.carbs += (Number(i.carbs_per_100g) || 0) * k;
+    t.fat += (Number(i.fat_per_100g) || 0) * k;
+  }
+  return t;
+}
+
+function renderRecipeForm() {
+  const isEdit = !!modalState.editing;
+  const t = recipeTotals();
+  return `
+    <button class="add-btn secondary" onclick="setLibView('list')">← Back</button>
+    <form class="form" onsubmit="saveRecipe(event, ${isEdit ? `'${modalState.editing.id}'` : 'null'})">
+      <div class="form-row">
+        <label>Name</label>
+        <input name="name" value="${escapeHtml(recipeDraft.name)}" required placeholder="e.g. Nevil's Protein Shake" oninput="recipeDraft.name = this.value" />
+      </div>
+      <div class="form-row">
+        <label>Notes</label>
+        <input name="notes" value="${escapeHtml(recipeDraft.notes)}" placeholder="optional" oninput="recipeDraft.notes = this.value" />
+      </div>
+      <div>
+        <h4 style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.18em;color:var(--ink-whisper);margin:14px 0 10px;">Ingredients</h4>
+        <div class="ing-rows">
+          ${recipeDraft.ingredients.map((i, idx) => `
+            <div class="ing-row">
+              <span class="name"><span class="source">${i.source}</span>${escapeHtml(i.raw_name || '')}</span>
+              <input class="grams" type="number" step="0.1" min="0" value="${i.grams}" oninput="updateIngredientGrams(${idx}, this.value)" />
+              <button type="button" class="ing-del" onclick="removeIngredient(${idx})" title="Remove">×</button>
+            </div>
+          `).join('')}
+        </div>
+        <div class="ing-search">
+          <input type="search" placeholder="Search USDA or custom foods…" oninput="onIngredientSearch(this.value)" autocomplete="off" />
+          <ul class="results" id="ing-search-results"></ul>
+        </div>
+        <div class="ing-totals">
+          <span><b>${r0(t.kcal)}</b>kcal</span>
+          &nbsp;·&nbsp;
+          <span><b>${r0(t.protein)}</b>g protein</span>
+          &nbsp;·&nbsp;
+          <span><b>${r0(t.carbs)}</b>g carbs</span>
+          &nbsp;·&nbsp;
+          <span><b>${r0(t.fat)}</b>g fat</span>
+          &nbsp;·&nbsp;
+          <span><b>${r0(t.grams)}</b>g total</span>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="form-cancel" onclick="setLibView('list')">Cancel</button>
+        <button type="submit" class="form-save" ${recipeDraft.ingredients.length === 0 ? 'disabled' : ''}>${isEdit ? 'Save changes' : 'Add meal'}</button>
+      </div>
+    </form>
+  `;
+}
+
+let ingSearchTimer = null;
+let ingSearchAbort = null;
+async function onIngredientSearch(q) {
+  if (ingSearchTimer) clearTimeout(ingSearchTimer);
+  if (ingSearchAbort) ingSearchAbort.abort();
+  q = q.trim();
+  const list = document.getElementById('ing-search-results');
+  if (!list) return;
+  if (q.length < 2) { list.innerHTML = ''; return; }
+  ingSearchTimer = setTimeout(async () => {
+    ingSearchAbort = new AbortController();
+    try {
+      // Custom foods: client-side filter
+      const customMatches = (libraryCache.custom_foods || [])
+        .filter(f => f.name.toLowerCase().includes(q.toLowerCase()))
+        .slice(0, 4);
+      // USDA: server search
+      const res = await fetch(`${API_URL}?action=search&q=${encodeURIComponent(q)}`, { signal: ingSearchAbort.signal });
+      const data = await res.json();
+      const usdaResults = data.results || [];
+      const all = [
+        ...customMatches.map(c => ({
+          source: 'custom',
+          custom_food_id: c.id,
+          raw_name: c.name,
+          kcal_per_100g: Number(c.kcal_per_100g),
+          protein_per_100g: Number(c.protein_per_100g),
+          carbs_per_100g: Number(c.carbs_per_100g),
+          fat_per_100g: Number(c.fat_per_100g),
+          fiber_per_100g: Number(c.fiber_per_100g),
+          sugar_per_100g: Number(c.sugar_per_100g),
+          sodium_per_100mg: Number(c.sodium_per_100mg),
+          sat_fat_per_100g: Number(c.sat_fat_per_100g),
+          default_grams: c.default_grams,
+        })),
+        ...usdaResults.slice(0, 6).map(u => ({
+          source: 'usda',
+          fdc_id: String(u.fdc_id),
+          raw_name: u.brand ? `${u.name} (${u.brand})` : u.name,
+          kcal_per_100g: u.kcal_per_100g,
+          protein_per_100g: u.protein_per_100g,
+          carbs_per_100g: u.carbs_per_100g,
+          fat_per_100g: u.fat_per_100g,
+          fiber_per_100g: 0, sugar_per_100g: 0, sodium_per_100mg: 0, sat_fat_per_100g: 0,
+        })),
+      ];
+      list.innerHTML = all.map((it, i) => `
+        <li onclick='addIngredient(${JSON.stringify(it).replace(/'/g, "&#39;")})'>
+          <span><span class="src">${it.source}</span> ${escapeHtml(it.raw_name)}</span>
+          <span class="src">${r0(it.kcal_per_100g)} kcal/100g</span>
+        </li>
+      `).join('');
+    } catch (e) {
+      if (e.name !== 'AbortError') console.error(e);
+    }
+  }, 220);
+}
+
+function addIngredient(it) {
+  recipeDraft.ingredients.push({
+    source: it.source,
+    fdc_id: it.fdc_id || null,
+    custom_food_id: it.custom_food_id || null,
+    raw_name: it.raw_name,
+    grams: it.default_grams ? Number(it.default_grams) : 100,
+    kcal_per_100g: it.kcal_per_100g,
+    protein_per_100g: it.protein_per_100g,
+    carbs_per_100g: it.carbs_per_100g,
+    fat_per_100g: it.fat_per_100g,
+    fiber_per_100g: it.fiber_per_100g || 0,
+    sugar_per_100g: it.sugar_per_100g || 0,
+    sodium_per_100mg: it.sodium_per_100mg || 0,
+    sat_fat_per_100g: it.sat_fat_per_100g || 0,
+  });
+  renderModal();
+}
+
+function removeIngredient(idx) {
+  recipeDraft.ingredients.splice(idx, 1);
+  renderModal();
+}
+
+function updateIngredientGrams(idx, value) {
+  const n = Number(value);
+  if (Number.isFinite(n) && n >= 0) recipeDraft.ingredients[idx].grams = n;
+  // Don't re-render to keep focus on input; recompute totals manually
+  const t = recipeTotals();
+  const totalsEl = document.querySelector('.ing-totals');
+  if (totalsEl) {
+    totalsEl.innerHTML = `
+      <span><b>${r0(t.kcal)}</b>kcal</span> &nbsp;·&nbsp;
+      <span><b>${r0(t.protein)}</b>g protein</span> &nbsp;·&nbsp;
+      <span><b>${r0(t.carbs)}</b>g carbs</span> &nbsp;·&nbsp;
+      <span><b>${r0(t.fat)}</b>g fat</span> &nbsp;·&nbsp;
+      <span><b>${r0(t.grams)}</b>g total</span>
+    `;
+  }
+}
+
+async function saveRecipe(event, id) {
+  event.preventDefault();
+  const body = {
+    name: recipeDraft.name.trim(),
+    notes: recipeDraft.notes,
+    ingredients: recipeDraft.ingredients,
+  };
+  if (!body.name || body.ingredients.length === 0) return;
+  const url = id ? `${API_URL}?action=update-recipe&id=${id}` : `${API_URL}?action=create-recipe`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) { alert('Save failed: ' + (await res.text())); return; }
+  await loadLibrary(true);
+  modalState.tab = 'meals';
+  setLibView('list');
+}
+
+async function deleteRecipe(id) {
+  if (!confirm('Delete this meal?')) return;
+  const res = await fetch(`${API_URL}?action=delete-recipe&id=${id}`, { method: 'DELETE' });
+  if (!res.ok) { alert('Delete failed'); return; }
+  await loadLibrary(true);
+  renderModal();
+}
+
+/* Promote a logged submission into a recipe */
+
+async function promoteToRecipe(id) {
+  const name = prompt('Save this as meal — name?');
+  if (!name) return;
+  const res = await fetch(`${API_URL}?action=promote-submission&id=${id}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name.trim() }),
+  });
+  if (!res.ok) { alert('Save failed: ' + (await res.text())); return; }
+  await loadLibrary(true);
+  alert('Saved to library.');
 }
 
 async function updateMeal(id, meal) {
@@ -1420,8 +2266,13 @@ function renderEntry(e, idx, kcal, p, c, f) {
   const estimated = e.usda_status && e.usda_status !== 'matched'
     ? `<span class="estimated" onclick="event.stopPropagation();resyncEntry('${e.id}')" title="Click to retry USDA match">estimated</span>`
     : '';
+  const libBadge = e.recipe_id
+    ? `<span class="lib-badge recipe" title="Saved meal">★ meal</span>`
+    : e.custom_food_id
+    ? `<span class="lib-badge custom" title="Custom food">★ custom</span>`
+    : '';
   const notes = e.notes ? `<span class="notes">"${escapeHtml(e.notes)}"</span>` : '';
-  const metaParts = [grams, estimated, notes].filter(Boolean).join('<span class="sep">·</span>');
+  const metaParts = [grams, libBadge, estimated, notes].filter(Boolean).join('<span class="sep">·</span>');
   const isExpanded = expandedId === e.id;
   return `
     <li class="entry${isExpanded ? ' expanded' : ''}" id="entry-${e.id}">
@@ -1484,6 +2335,9 @@ function renderEditor(e) {
         <h4>Replace with another USDA food</h4>
         <input class="search-input" type="search" placeholder="Search USDA FoodData Central…" oninput="onSearchInput('${e.id}')" autocomplete="off" />
         <ul class="editor-results"></ul>
+        <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--rule-soft);">
+          <button class="add-btn secondary" onclick="event.preventDefault();promoteToRecipe('${e.id}')" type="button">★ Save submission as a meal</button>
+        </div>
       </div>
     </div>
   `;

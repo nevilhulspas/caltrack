@@ -1,6 +1,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { displayName, getFood, scaleToGrams, searchFoods } from "../_shared/usda.ts";
+import {
+  computeRecipeTotals,
+  loadCustomFoods,
+  loadRecipes,
+  type RecipeIngredientInput,
+} from "../_shared/library.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -27,6 +33,188 @@ Deno.serve(async (req: Request) => {
   const action = url.searchParams.get("action");
 
   // GET ?action=search&q=... — return USDA candidates for a relink picker.
+  // ─────────────────────────── Library ───────────────────────────
+
+  if (req.method === "GET" && action === "library") {
+    try {
+      const [custom_foods, recipes] = await Promise.all([
+        loadCustomFoods(supabase),
+        loadRecipes(supabase, true),
+      ]);
+      return json({ custom_foods, recipes });
+    } catch (e) {
+      return json({ error: (e as Error).message }, 500);
+    }
+  }
+
+  if (req.method === "POST" && action === "create-custom-food") {
+    const body = await req.json().catch(() => ({}));
+    if (!body.name) return json({ error: "name required" }, 400);
+    const row = pickCustomFoodFields(body);
+    const { data, error } = await supabase.from("custom_foods").insert(row).select().single();
+    if (error) return json({ error: error.message }, 500);
+    return json(data);
+  }
+
+  if (req.method === "POST" && action === "update-custom-food") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "Missing 'id' parameter" }, 400);
+    const body = await req.json().catch(() => ({}));
+    const row = pickCustomFoodFields(body);
+    row.updated_at = new Date().toISOString();
+    const { data, error } = await supabase.from("custom_foods").update(row).eq("id", id).select().single();
+    if (error) return json({ error: error.message }, 500);
+    return json(data);
+  }
+
+  if (req.method === "DELETE" && action === "delete-custom-food") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "Missing 'id' parameter" }, 400);
+    const { error } = await supabase.from("custom_foods").update({ is_deleted: true }).eq("id", id);
+    if (error) return json({ error: error.message }, 500);
+    return json({ success: true });
+  }
+
+  if (req.method === "POST" && (action === "create-recipe" || action === "update-recipe")) {
+    const isUpdate = action === "update-recipe";
+    const id = isUpdate ? url.searchParams.get("id") : null;
+    if (isUpdate && !id) return json({ error: "Missing 'id' parameter" }, 400);
+    const body = await req.json().catch(() => ({}));
+    if (!body.name) return json({ error: "name required" }, 400);
+    if (!Array.isArray(body.ingredients) || body.ingredients.length === 0) {
+      return json({ error: "ingredients required" }, 400);
+    }
+
+    // Normalize incoming ingredients — backend trusts client per-100g values
+    // to skip extra USDA fetches; the dashboard form populates them after
+    // search picks a USDA hit or a custom food.
+    const ings: RecipeIngredientInput[] = body.ingredients.map((i: any, idx: number) => ({
+      fdc_id: i.fdc_id ? String(i.fdc_id) : null,
+      custom_food_id: i.custom_food_id ?? null,
+      raw_name: i.raw_name ?? null,
+      grams: Number(i.grams) || 0,
+      kcal_per_100g: Number(i.kcal_per_100g) || 0,
+      protein_per_100g: Number(i.protein_per_100g) || 0,
+      carbs_per_100g: Number(i.carbs_per_100g) || 0,
+      fat_per_100g: Number(i.fat_per_100g) || 0,
+      fiber_per_100g: Number(i.fiber_per_100g) || 0,
+      sugar_per_100g: Number(i.sugar_per_100g) || 0,
+      sodium_per_100mg: Number(i.sodium_per_100mg) || 0,
+      sat_fat_per_100g: Number(i.sat_fat_per_100g) || 0,
+      _position: idx,
+    } as RecipeIngredientInput & { _position: number }));
+
+    const totals = computeRecipeTotals(ings);
+    const recipeRow = {
+      name: String(body.name).trim(),
+      notes: body.notes ?? null,
+      ...totals,
+      updated_at: new Date().toISOString(),
+    };
+
+    let recipeId = id as string;
+    if (isUpdate) {
+      const { error } = await supabase.from("recipes").update(recipeRow).eq("id", id);
+      if (error) return json({ error: error.message }, 500);
+      // wipe old ingredients
+      await supabase.from("recipe_ingredients").delete().eq("recipe_id", id);
+    } else {
+      const { data, error } = await supabase.from("recipes").insert(recipeRow).select().single();
+      if (error) return json({ error: error.message }, 500);
+      recipeId = data.id;
+    }
+
+    const ingRows = ings.map((i, idx) => ({
+      recipe_id: recipeId,
+      position: idx,
+      fdc_id: i.fdc_id ?? null,
+      custom_food_id: i.custom_food_id ?? null,
+      raw_name: i.raw_name ?? null,
+      grams: i.grams,
+      kcal_per_100g: i.kcal_per_100g,
+      protein_per_100g: i.protein_per_100g,
+      carbs_per_100g: i.carbs_per_100g,
+      fat_per_100g: i.fat_per_100g,
+      fiber_per_100g: i.fiber_per_100g,
+      sugar_per_100g: i.sugar_per_100g,
+      sodium_per_100mg: i.sodium_per_100mg,
+      sat_fat_per_100g: i.sat_fat_per_100g,
+    }));
+    if (ingRows.length) {
+      const { error } = await supabase.from("recipe_ingredients").insert(ingRows);
+      if (error) return json({ error: error.message }, 500);
+    }
+    const { data: full } = await supabase.from("recipes").select("*").eq("id", recipeId).single();
+    return json(full);
+  }
+
+  if (req.method === "DELETE" && action === "delete-recipe") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "Missing 'id' parameter" }, 400);
+    const { error } = await supabase.from("recipes").update({ is_deleted: true }).eq("id", id);
+    if (error) return json({ error: error.message }, 500);
+    return json({ success: true });
+  }
+
+  // Convert one logged submission (a food_log row + its siblings sharing
+  // raw_input + minute) into a saved recipe. Subsequent voice logs that
+  // mention this name will match the recipe.
+  if (req.method === "POST" && action === "promote-submission") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "Missing 'id' parameter" }, 400);
+    const body = await req.json().catch(() => ({}));
+    const name = String(body.name || "").trim();
+    if (!name) return json({ error: "name required" }, 400);
+
+    const { data: anchor, error: anchorErr } = await supabase
+      .from("food_logs").select("*").eq("id", id).single();
+    if (anchorErr || !anchor) return json({ error: "Entry not found" }, 404);
+
+    const minuteBucket = anchor.created_at ? String(anchor.created_at).slice(0, 16) : "";
+    const { data: siblings } = await supabase
+      .from("food_logs")
+      .select("*")
+      .eq("user_name", anchor.user_name)
+      .eq("raw_input", anchor.raw_input)
+      .eq("is_deleted", false);
+
+    const submission = (siblings ?? []).filter((r: any) => {
+      const rb = r.created_at ? String(r.created_at).slice(0, 16) : "";
+      return rb === minuteBucket;
+    });
+    const rows = submission.length ? submission : [anchor];
+
+    const ings: RecipeIngredientInput[] = rows.map((r: any) => {
+      const grams = Number(r.usda_grams) || 100;
+      const k = grams > 0 ? 100 / grams : 0;
+      return {
+        fdc_id: r.usda_fdc_id ?? null,
+        custom_food_id: r.custom_food_id ?? null,
+        raw_name: r.food_name ?? r.raw_input ?? null,
+        grams,
+        kcal_per_100g: (Number(r.calories) || 0) * k,
+        protein_per_100g: (Number(r.protein_g) || 0) * k,
+        carbs_per_100g: (Number(r.carbs_g) || 0) * k,
+        fat_per_100g: (Number(r.fat_g) || 0) * k,
+        fiber_per_100g: (Number(r.fiber_g) || 0) * k,
+        sugar_per_100g: (Number(r.sugar_g) || 0) * k,
+        sodium_per_100mg: (Number(r.sodium_mg) || 0) * k,
+        sat_fat_per_100g: (Number(r.saturated_fat_g) || 0) * k,
+      };
+    });
+
+    const totals = computeRecipeTotals(ings);
+    const { data: recipe, error } = await supabase
+      .from("recipes")
+      .insert({ name, ...totals })
+      .select()
+      .single();
+    if (error) return json({ error: error.message }, 500);
+    const ingRows = ings.map((i, idx) => ({ recipe_id: recipe.id, position: idx, ...i }));
+    await supabase.from("recipe_ingredients").insert(ingRows);
+    return json(recipe);
+  }
+
   if (req.method === "GET" && action === "search") {
     const q = (url.searchParams.get("q") || "").trim();
     if (!q || q.length < 2) return json({ results: [] });
@@ -235,3 +423,24 @@ Deno.serve(async (req: Request) => {
   if (error) return json({ error: error.message }, 500);
   return json({ logs: logs || [] });
 });
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function pickCustomFoodFields(b: any): Record<string, unknown> {
+  return {
+    name: String(b.name || "").trim(),
+    brand: b.brand ? String(b.brand).trim() : null,
+    kcal_per_100g: Number(b.kcal_per_100g) || 0,
+    protein_per_100g: Number(b.protein_per_100g) || 0,
+    carbs_per_100g: Number(b.carbs_per_100g) || 0,
+    fat_per_100g: Number(b.fat_per_100g) || 0,
+    fiber_per_100g: Number(b.fiber_per_100g) || 0,
+    sugar_per_100g: Number(b.sugar_per_100g) || 0,
+    sodium_per_100mg: Number(b.sodium_per_100mg) || 0,
+    sat_fat_per_100g: Number(b.sat_fat_per_100g) || 0,
+    default_grams: b.default_grams ? Number(b.default_grams) : null,
+    notes: b.notes ?? null,
+  };
+}

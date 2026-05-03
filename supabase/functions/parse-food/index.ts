@@ -1,6 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { displayName, scaleToGrams, searchFoods, type FdcFood } from "../_shared/usda.ts";
+import {
+  computeRecipeTotals,
+  findLibraryMatch,
+  libraryMacros,
+  loadMatchableLibrary,
+  type LibraryMatch,
+  type RecipeIngredientInput,
+} from "../_shared/library.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -59,6 +67,21 @@ const isUndoCommand = (t: string) => {
   const lower = t.toLowerCase().trim();
   return UNDO_KEYWORDS.some((k) => lower.includes(k));
 };
+
+// Voice promote: "save this as Nevil's Protein Shake" / "save the last meal
+// as <name>" / "save it as <name>". Captures the trailing name.
+const SAVE_REGEXES = [
+  /^\s*save\s+(?:this|that|it|the\s+last\s+(?:meal|entry|recipe))\s+as\s+(.+?)\s*[.!?]?\s*$/i,
+  /^\s*save\s+as\s+(.+?)\s*[.!?]?\s*$/i,
+  /^\s*sla\s+(?:dit|deze|de\s+laatste)\s+op\s+als\s+(.+?)\s*[.!?]?\s*$/i, // Dutch
+];
+function detectSaveCommand(text: string): string | null {
+  for (const r of SAVE_REGEXES) {
+    const m = text.match(r);
+    if (m && m[1]) return m[1].trim();
+  }
+  return null;
+}
 
 interface ExtractedItem {
   query: string;
@@ -224,62 +247,135 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Voice "save this as <name>": find the most recent submission for this
+    // user, group its rows, and create a recipe from them.
+    const saveAsName = detectSaveCommand(food);
+    if (saveAsName) {
+      const { data: anchor } = await supabase
+        .from("food_logs").select("*").eq("user_name", userName).eq("is_deleted", false)
+        .order("created_at", { ascending: false }).limit(1).single();
+      if (!anchor) return jsonResponse({ message: "No recent meal to save", success: false });
+      const minute = anchor.created_at ? String(anchor.created_at).slice(0, 16) : "";
+      const { data: siblings } = await supabase
+        .from("food_logs").select("*").eq("user_name", userName)
+        .eq("raw_input", anchor.raw_input).eq("is_deleted", false);
+      const submission = (siblings ?? []).filter((r: any) => String(r.created_at).slice(0, 16) === minute);
+      const rows = submission.length ? submission : [anchor];
+
+      const ings: RecipeIngredientInput[] = rows.map((r: any) => {
+        const grams = Number(r.usda_grams) || 100;
+        const k = grams > 0 ? 100 / grams : 0;
+        return {
+          fdc_id: r.usda_fdc_id ?? null,
+          custom_food_id: r.custom_food_id ?? null,
+          raw_name: r.food_name ?? r.raw_input ?? null,
+          grams,
+          kcal_per_100g: (Number(r.calories) || 0) * k,
+          protein_per_100g: (Number(r.protein_g) || 0) * k,
+          carbs_per_100g: (Number(r.carbs_g) || 0) * k,
+          fat_per_100g: (Number(r.fat_g) || 0) * k,
+          fiber_per_100g: (Number(r.fiber_g) || 0) * k,
+          sugar_per_100g: (Number(r.sugar_g) || 0) * k,
+          sodium_per_100mg: (Number(r.sodium_mg) || 0) * k,
+          sat_fat_per_100g: (Number(r.saturated_fat_g) || 0) * k,
+        };
+      });
+      const totals = computeRecipeTotals(ings);
+      const { data: recipe, error: rErr } = await supabase
+        .from("recipes").insert({ name: saveAsName, ...totals }).select().single();
+      if (rErr) return jsonResponse({ error: rErr.message }, 500);
+      const ingRows = ings.map((i, idx) => ({ recipe_id: recipe.id, position: idx, ...i }));
+      await supabase.from("recipe_ingredients").insert(ingRows);
+      return jsonResponse({
+        message: `Saved as meal: ${saveAsName}`,
+        saved: true,
+        recipe_id: recipe.id,
+        food_name: saveAsName,
+        items: rows.length,
+      });
+    }
+
     if (!ANTHROPIC_API_KEY) return jsonResponse({ error: "ANTHROPIC_API_KEY not configured" }, 500);
+
+    // Load library once for matching all items in this submission.
+    let library: LibraryMatch[] = [];
+    try {
+      library = await loadMatchableLibrary(supabase);
+    } catch (e) {
+      console.error("Library load failed:", (e as Error).message);
+    }
 
     // 1. Claude splits the input into structured items + meal metadata.
     const extracted = await extractWithClaude(food);
     const entryDate = calculateEntryDate(extracted.date_offset_days, extracted.meal_time);
 
-    // 2. Per item: search USDA FDC. Confident match → real nutrition. Otherwise
-    //    fall back to Claude's estimate so we never hard-fail the log.
-    const itemResults = await Promise.all(
-      extracted.items.map(async (item) => {
+    // 2. Per item: try the user's library first (custom foods + meals);
+    //    fall back to USDA FDC; finally Claude's estimate. Library matches
+    //    populate recipe_id or custom_food_id on the food_logs row.
+    type ItemResult = {
+      query: string;
+      grams: number;
+      status: "matched" | "estimated" | "library";
+      fdc_id: number | null;
+      recipe_id: string | null;
+      custom_food_id: string | null;
+      matched_name: string | null;
+      calories: number;
+      protein_g: number;
+      carbs_g: number;
+      fat_g: number;
+      fiber_g: number;
+      sugar_g: number;
+      sodium_mg: number;
+      saturated_fat_g: number;
+    };
+
+    const itemResults: ItemResult[] = await Promise.all(
+      extracted.items.map(async (item): Promise<ItemResult> => {
+        const fallback: ItemResult = {
+          query: item.query, grams: item.grams,
+          status: "estimated", fdc_id: null, recipe_id: null, custom_food_id: null,
+          matched_name: null,
+          calories: item.estimated_calories, protein_g: item.estimated_protein_g,
+          carbs_g: item.estimated_carbs_g, fat_g: item.estimated_fat_g,
+          fiber_g: item.estimated_fiber_g, sugar_g: item.estimated_sugar_g,
+          sodium_mg: item.estimated_sodium_mg, saturated_fat_g: item.estimated_saturated_fat_g,
+        };
+
+        // Library first
+        const lib = findLibraryMatch(item.query, library);
+        if (lib) {
+          // If user didn't specify grams or specified a near-default, snap
+          // to the library item's default_grams so totals match the saved
+          // recipe / custom food rather than partial scaling.
+          const grams = item.grams && item.grams > 0 ? item.grams : lib.default_grams;
+          const macros = libraryMacros(lib, grams);
+          return {
+            query: item.query, grams, status: "library",
+            fdc_id: null,
+            recipe_id: lib.kind === "recipe" ? lib.id : null,
+            custom_food_id: lib.kind === "custom_food" ? lib.id : null,
+            matched_name: lib.name,
+            ...macros,
+          };
+        }
+
+        // USDA fallback
         try {
           const candidates = await searchFoods(item.query);
           const match = await pickBestMatchWithLlm(item, candidates);
           if (match) {
             const macros = scaleToGrams(match, item.grams);
             return {
-              query: item.query,
-              grams: item.grams,
-              status: "matched" as const,
-              fdc_id: match.fdcId,
-              matched_name: displayName(match),
-              ...macros,
+              query: item.query, grams: item.grams, status: "matched",
+              fdc_id: match.fdcId, recipe_id: null, custom_food_id: null,
+              matched_name: displayName(match), ...macros,
             };
           }
-          return {
-            query: item.query,
-            grams: item.grams,
-            status: "estimated" as const,
-            fdc_id: null as number | null,
-            matched_name: null as string | null,
-            calories: item.estimated_calories,
-            protein_g: item.estimated_protein_g,
-            carbs_g: item.estimated_carbs_g,
-            fat_g: item.estimated_fat_g,
-            fiber_g: item.estimated_fiber_g,
-            sugar_g: item.estimated_sugar_g,
-            sodium_mg: item.estimated_sodium_mg,
-            saturated_fat_g: item.estimated_saturated_fat_g,
-          };
+          return fallback;
         } catch (e) {
           console.error(`FDC search failed for "${item.query}":`, (e as Error).message);
-          return {
-            query: item.query,
-            grams: item.grams,
-            status: "estimated" as const,
-            fdc_id: null as number | null,
-            matched_name: null as string | null,
-            calories: item.estimated_calories,
-            protein_g: item.estimated_protein_g,
-            carbs_g: item.estimated_carbs_g,
-            fat_g: item.estimated_fat_g,
-            fiber_g: item.estimated_fiber_g,
-            sugar_g: item.estimated_sugar_g,
-            sodium_mg: item.estimated_sodium_mg,
-            saturated_fat_g: item.estimated_saturated_fat_g,
-          };
+          return fallback;
         }
       }),
     );
@@ -300,9 +396,14 @@ Deno.serve(async (req: Request) => {
       user_name: userName,
       is_deleted: false,
       entry_date: entryDate.toISOString(),
-      usda_status: r.status,
+      // Library matches mark usda_status="matched" so the existing dashboard
+      // logic (no "estimated" badge) works; the recipe_id / custom_food_id
+      // columns differentiate the source for the library badge.
+      usda_status: r.status === "library" ? "matched" : r.status,
       usda_fdc_id: r.fdc_id ? String(r.fdc_id) : null,
       usda_grams: r.grams,
+      recipe_id: r.recipe_id,
+      custom_food_id: r.custom_food_id,
     }));
 
     const { error: dbError } = await supabase.from("food_logs").insert(rows);
@@ -335,6 +436,7 @@ Deno.serve(async (req: Request) => {
       usda_summary: {
         matched: itemResults.filter((r) => r.status === "matched").length,
         estimated: itemResults.filter((r) => r.status === "estimated").length,
+        library: itemResults.filter((r) => r.status === "library").length,
       },
     });
   } catch (error) {
