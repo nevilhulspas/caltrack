@@ -301,6 +301,76 @@ h1 span {
   font-style: italic;
 }
 
+.mf-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-top: 6px;
+  cursor: default;
+}
+.mf-badge.matched { background: var(--accent-sage-soft); color: var(--accent-sage); }
+.mf-badge.fallback { background: var(--accent-gold-soft); color: var(--accent-gold); cursor: pointer; }
+.mf-badge.failed { background: rgba(239, 68, 68, 0.12); color: #ef4444; cursor: pointer; }
+.mf-badge.fallback:hover, .mf-badge.failed:hover { filter: brightness(1.2); }
+.mf-badge .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor;
+}
+
+.summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-soft);
+  animation: fadeSlideIn 0.6s ease-out 0.1s backwards;
+}
+.summary-card h2 {
+  font-family: 'Fraunces', serif;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.summary-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.summary-stat .label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.summary-stat .value {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: 'Fraunces', serif;
+}
+.summary-stat .sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.summary-stat.calories .value { color: var(--accent-coral); }
+.summary-stat.protein .value { color: var(--accent-sage); }
+.summary-stat.match .value { color: var(--accent-gold); }
+@media (max-width: 540px) {
+  .summary-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 .food-time {
   font-size: 12px;
   color: var(--text-muted);
@@ -574,6 +644,74 @@ function updateButtons() {
   document.getElementById('btn-30').className = currentDays === 30 ? 'active' : '';
 }
 
+function renderSummary(logs) {
+  if (currentDays <= 1 || !logs.length) return '';
+  const dayKey = (d) => new Date(d).toISOString().slice(0, 10);
+  const days = new Set(logs.map((l) => dayKey(l.entry_date)));
+  const totalCals = logs.reduce((s, l) => s + (Number(l.calories) || 0), 0);
+  const totalProtein = logs.reduce((s, l) => s + (Number(l.protein_g) || 0), 0);
+  const matched = logs.filter((l) => l.mf_status === 'matched').length;
+  const tracked = logs.filter((l) => l.mf_status).length;
+  const matchPct = tracked ? Math.round((matched / tracked) * 100) : null;
+  const avgCals = Math.round(totalCals / days.size);
+  const avgProtein = Math.round(totalProtein / days.size);
+  return `
+    <div class="summary-card">
+      <h2>Last ${currentDays} days</h2>
+      <div class="summary-grid">
+        <div class="summary-stat calories">
+          <span class="label">Avg kcal/day</span>
+          <span class="value">${avgCals}</span>
+          <span class="sub">${days.size} day${days.size === 1 ? '' : 's'} logged</span>
+        </div>
+        <div class="summary-stat protein">
+          <span class="label">Avg protein/day</span>
+          <span class="value">${avgProtein}g</span>
+          <span class="sub">total ${Math.round(totalProtein)}g</span>
+        </div>
+        <div class="summary-stat">
+          <span class="label">Entries</span>
+          <span class="value">${logs.length}</span>
+          <span class="sub">across ${days.size} day${days.size === 1 ? '' : 's'}</span>
+        </div>
+        <div class="summary-stat match">
+          <span class="label">MF match rate</span>
+          <span class="value">${matchPct === null ? '—' : matchPct + '%'}</span>
+          <span class="sub">${matchPct === null ? 'no sync data' : `${matched}/${tracked} synced`}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderMfBadge(f) {
+  const status = f.mf_status;
+  if (!status) return '';
+  if (status === 'matched') {
+    const id = f.mf_food_id ? ` (${f.mf_food_id})` : '';
+    return `<span class="mf-badge matched" title="Logged as MacroFactor food${id}"><span class="dot"></span>Synced to MacroFactor</span>`;
+  }
+  if (status === 'fallback') {
+    return `<span class="mf-badge fallback" title="Click to retry matching" onclick="resyncEntry('${f.id}')"><span class="dot"></span>Estimated · click to retry</span>`;
+  }
+  if (status === 'failed') {
+    return `<span class="mf-badge failed" title="Click to retry sync" onclick="resyncEntry('${f.id}')"><span class="dot"></span>Sync failed · retry</span>`;
+  }
+  return '';
+}
+
+async function resyncEntry(id) {
+  try {
+    const res = await fetch(`${API_URL}?action=resync&id=${id}`, { method: 'POST' });
+    if (res.ok) {
+      fetchData();
+    } else {
+      alert('Resync failed');
+    }
+  } catch (e) {
+    alert('Resync error');
+  }
+}
+
 async function deleteEntry(id) {
   if (!confirm('Delete this entry?')) return;
 
@@ -639,7 +777,7 @@ function renderData(logs) {
     totals[key].fat += Number(log.fat_g) || 0;
   }
 
-  let html = '';
+  let html = renderSummary(filteredLogs);
   for (const [date, users] of Object.entries(byDate)) {
     let userSections = '';
     for (const [userName, foods] of Object.entries(users)) {
@@ -649,12 +787,14 @@ function renderData(logs) {
       for (const f of foods) {
         const notes = f.notes ? `<div class="food-notes">"${f.notes}"</div>` : '';
         const time = new Date(f.entry_date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        const badge = renderMfBadge(f);
         foodItems += `
           <div class="food-item" id="entry-${f.id}">
             <div class="food-info">
               <div class="food-name">${f.food_name || f.raw_input}</div>
               ${notes}
               <div class="food-time">${time}</div>
+              ${badge}
             </div>
             <div class="food-actions">
               <div class="food-macros">
