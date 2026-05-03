@@ -1,8 +1,8 @@
 # CalTrack - Voice Food Logger
 
-Voice-activated food logging for MacroFactor via iOS Shortcuts and Supabase.
-Logs **real MacroFactor foods** (USDA + branded DB), with Apple Health as a
-fallback for items that don't match.
+Voice-activated food logging backed by USDA FoodData Central, Supabase, and
+Apple Health. Logs real foods from the official USDA database — no
+MacroFactor account or unofficial API required.
 
 ## How It Works
 
@@ -13,18 +13,17 @@ Speak food → iOS transcribes → parse-food Edge Function
                                         │
                 ┌───────────────────────┴───────────────────────┐
                 ▼                                               ▼
-    Typesense match → log real food to              No match → log estimated
-    MacroFactor (Firestore REST)                   entry; iOS Shortcut writes
-                                                   totals to Apple Health,
-                                                   MacroFactor imports them
+    USDA FDC search →                              No confident match →
+    real per-100g nutrition,                       use Claude estimate
+    scaled to grams                                (usda_status = "estimated")
                                         │
                                  Store in Supabase
+                                        │
+                  iOS Shortcut writes totals to Apple Health
                                         ▼
                                     Dashboard
-                          (sync badges + weekly summary)
+                       (USDA match badges + weekly summary)
 ```
-
-For the new MacroFactor sync setup, see [SETUP-MACROFACTOR.md](SETUP-MACROFACTOR.md).
 
 ## Features
 
@@ -41,13 +40,13 @@ For the new MacroFactor sync setup, see [SETUP-MACROFACTOR.md](SETUP-MACROFACTOR
 
 | Component | Purpose |
 |-----------|---------|
-| iOS Shortcuts | Voice input, conditional Apple Health write |
-| Supabase Edge Functions | parse-food (extract → match → log), dashboard-api (read + resync) |
-| Supabase Database | Food history with MF sync status |
+| iOS Shortcuts | Voice input, Apple Health write |
+| Supabase Edge Functions | parse-food (extract → match → store), dashboard-api (read + resync) |
+| Supabase Database | Food history with USDA match status |
 | GitHub Pages | Dashboard hosting |
 | Claude API | Splits speech into structured items |
-| MacroFactor (unofficial API) | Real food logging via Firestore + Typesense |
-| Apple Health | Fallback path for unmatched foods |
+| USDA FoodData Central | Real food nutrition (free public API) |
+| Apple Health | iPhone-side macro storage |
 
 ## Quick Start
 
@@ -79,10 +78,12 @@ create index food_logs_created_at_idx on food_logs(created_at desc);
 create index food_logs_user_name_idx on food_logs(user_name);
 ```
 
-Then apply [supabase/migrations/20260503_add_macrofactor_sync_columns.sql](supabase/migrations/20260503_add_macrofactor_sync_columns.sql) to add the MF sync tracking columns.
+Then apply [supabase/migrations/20260503_add_usda_columns.sql](supabase/migrations/20260503_add_usda_columns.sql) to add the USDA match tracking columns.
 
 3. Deploy the Edge Functions (see `supabase/functions/`)
-4. Set `ANTHROPIC_API_KEY` in your Supabase project secrets
+4. Set Supabase secrets:
+   - `ANTHROPIC_API_KEY` — your Anthropic API key
+   - `USDA_FDC_API_KEY` — get one in 10 seconds at [api.data.gov/signup](https://api.data.gov/signup/) (defaults to `DEMO_KEY`, 1000 req/hr global limit)
 
 ### 2. Install the Shortcut
 
@@ -92,19 +93,12 @@ Then apply [supabase/migrations/20260503_add_macrofactor_sync_columns.sql](supab
    - The URL to your Supabase project
    - The username to your name
 
-### 3. Enable MacroFactor Sync
-
-1. Open MacroFactor
-2. Go to **More > Integrations > Apple Health**
-3. Enable **Import nutrition data from Apple Health**
-
-### 4. Test It
+### 3. Test It
 
 1. Run the Shortcut
 2. Say: "200 grams of chicken breast and a cup of rice"
 3. Check Apple Health > Browse > Nutrition
-4. Open MacroFactor - the food should appear
-5. Check the dashboard to see it logged
+4. Check the dashboard — entries should show the USDA match badge
 
 ## Usage
 

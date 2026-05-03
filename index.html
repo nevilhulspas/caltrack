@@ -650,8 +650,8 @@ function renderSummary(logs) {
   const days = new Set(logs.map((l) => dayKey(l.entry_date)));
   const totalCals = logs.reduce((s, l) => s + (Number(l.calories) || 0), 0);
   const totalProtein = logs.reduce((s, l) => s + (Number(l.protein_g) || 0), 0);
-  const matched = logs.filter((l) => l.mf_status === 'matched').length;
-  const tracked = logs.filter((l) => l.mf_status).length;
+  const matched = logs.filter((l) => l.usda_status === 'matched').length;
+  const tracked = logs.filter((l) => l.usda_status).length;
   const matchPct = tracked ? Math.round((matched / tracked) * 100) : null;
   const avgCals = Math.round(totalCals / days.size);
   const avgProtein = Math.round(totalProtein / days.size);
@@ -675,26 +675,23 @@ function renderSummary(logs) {
           <span class="sub">across ${days.size} day${days.size === 1 ? '' : 's'}</span>
         </div>
         <div class="summary-stat match">
-          <span class="label">MF match rate</span>
+          <span class="label">USDA match rate</span>
           <span class="value">${matchPct === null ? '—' : matchPct + '%'}</span>
-          <span class="sub">${matchPct === null ? 'no sync data' : `${matched}/${tracked} synced`}</span>
+          <span class="sub">${matchPct === null ? 'no match data' : `${matched}/${tracked} matched`}</span>
         </div>
       </div>
     </div>`;
 }
 
 function renderMfBadge(f) {
-  const status = f.mf_status;
+  const status = f.usda_status;
   if (!status) return '';
   if (status === 'matched') {
-    const id = f.mf_food_id ? ` (${f.mf_food_id})` : '';
-    return `<span class="mf-badge matched" title="Logged as MacroFactor food${id}"><span class="dot"></span>Synced to MacroFactor</span>`;
+    const id = f.usda_fdc_id ? ` (FDC ${f.usda_fdc_id})` : '';
+    return `<span class="mf-badge matched" title="USDA FoodData Central match${id}"><span class="dot"></span>USDA matched</span>`;
   }
-  if (status === 'fallback') {
-    return `<span class="mf-badge fallback" title="Click to retry matching" onclick="resyncEntry('${f.id}')"><span class="dot"></span>Estimated · click to retry</span>`;
-  }
-  if (status === 'failed') {
-    return `<span class="mf-badge failed" title="Click to retry sync" onclick="resyncEntry('${f.id}')"><span class="dot"></span>Sync failed · retry</span>`;
+  if (status === 'estimated') {
+    return `<span class="mf-badge fallback" title="Claude estimate — click to retry USDA lookup" onclick="resyncEntry('${f.id}')"><span class="dot"></span>Estimated · retry</span>`;
   }
   return '';
 }

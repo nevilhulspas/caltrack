@@ -1,11 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getAuthFor, logFood, searchFoods, toLogTime } from "../_shared/macrofactor.ts";
+import { displayName, scaleToGrams, searchFoods } from "../_shared/usda.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const MATCH_SCORE_THRESHOLD = 100_000;
+const MATCH_SCORE_THRESHOLD = 100;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,49 +27,40 @@ Deno.serve(async (req: Request) => {
   const action = url.searchParams.get("action");
 
   // Resync — POST ?action=resync&id=X
-  // Re-runs MacroFactor search+log for an existing food_logs row that came in
-  // as `fallback` or `failed`. Uses food_name as the query and the stored
-  // mf_grams (or falls back to a 100g default) as the quantity.
+  // Re-runs USDA FDC search for an existing food_logs row that came in as
+  // `estimated`. Updates nutrition columns with real data on a confident match.
   if (req.method === "POST" && action === "resync") {
     const id = url.searchParams.get("id");
     if (!id) return json({ error: "Missing 'id' parameter" }, 400);
 
     const { data: row, error } = await supabase
       .from("food_logs")
-      .select("id, user_name, food_name, raw_input, entry_date, mf_grams")
+      .select("id, food_name, raw_input, usda_grams")
       .eq("id", id)
       .single();
     if (error || !row) return json({ error: "Entry not found" }, 404);
 
     try {
-      const auth = await getAuthFor(row.user_name || "Unknown");
       const candidates = await searchFoods(row.food_name || row.raw_input);
-      if (!candidates.length || candidates[0].searchScore < MATCH_SCORE_THRESHOLD) {
-        return json({ status: "fallback", message: "No confident MacroFactor match" });
+      const top = candidates[0];
+      if (!top || top.searchScore < MATCH_SCORE_THRESHOLD || top.caloriesPer100g === 0) {
+        return json({ status: "estimated", message: "No confident USDA match" });
       }
-      const grams = Number(row.mf_grams) || 100;
-      const match = candidates[0];
-      const logTime = toLogTime(new Date(row.entry_date));
-      const entryId = await logFood(auth, match, grams, logTime);
-      const matchedName = match.brand ? `${match.name} (${match.brand})` : match.name;
+      const grams = Number(row.usda_grams) || 100;
+      const macros = scaleToGrams(top, grams);
 
       await supabase
         .from("food_logs")
         .update({
-          mf_status: "matched",
-          mf_food_id: match.foodId,
-          mf_entry_id: entryId,
-          mf_grams: grams,
-          mf_logged_at: new Date().toISOString(),
-          food_name: matchedName,
-          calories: (match.caloriesPer100g * grams) / 100,
-          protein_g: (match.proteinPer100g * grams) / 100,
-          carbs_g: (match.carbsPer100g * grams) / 100,
-          fat_g: (match.fatPer100g * grams) / 100,
+          usda_status: "matched",
+          usda_fdc_id: String(top.fdcId),
+          usda_grams: grams,
+          food_name: displayName(top),
+          ...macros,
         })
         .eq("id", id);
 
-      return json({ status: "matched", food_name: matchedName, mf_entry_id: entryId });
+      return json({ status: "matched", food_name: displayName(top), fdc_id: top.fdcId });
     } catch (e) {
       console.error("Resync failed:", (e as Error).message);
       return json({ status: "failed", error: (e as Error).message }, 500);
