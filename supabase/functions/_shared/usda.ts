@@ -28,11 +28,22 @@ export interface FdcFood {
   searchScore: number;
 }
 
+// FDC returns nutrients in two different shapes:
+//   - search endpoint:        { nutrientNumber, nutrientId, value }
+//   - single-food endpoint:   { nutrient: { number, id }, amount }
+// Normalize both.
 interface FdcNutrient {
   nutrientId?: number;
   nutrientNumber?: string;
   value?: number;
+  amount?: number;
   unitName?: string;
+  nutrient?: {
+    id?: number;
+    number?: string;
+    name?: string;
+    unitName?: string;
+  };
 }
 
 interface FdcSearchHit {
@@ -96,8 +107,14 @@ const N_SAT_FAT = "606";
 
 function nutrientValue(nutrients: FdcNutrient[] | undefined, code: string): number {
   if (!nutrients) return 0;
-  const hit = nutrients.find((n) => n.nutrientNumber === code || String(n.nutrientId) === code);
-  return Number(hit?.value) || 0;
+  const hit = nutrients.find((n) =>
+    n.nutrientNumber === code ||
+    String(n.nutrientId) === code ||
+    n.nutrient?.number === code ||
+    String(n.nutrient?.id) === code
+  );
+  if (!hit) return 0;
+  return Number(hit.value ?? hit.amount) || 0;
 }
 
 function parseHit(raw: FdcSearchHit | null): FdcFood | null {
