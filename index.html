@@ -498,9 +498,8 @@ body::after {
   border-bottom: 1px dotted var(--rose);
 }
 .entry-meta .estimated:hover { color: var(--terracotta); border-color: var(--terracotta); }
-.entry-meta .grams::before { content: '· '; color: var(--ink-ghost); margin: 0 4px 0 6px; }
+.entry-meta .sep { color: var(--ink-ghost); margin: 0 6px; }
 .entry-meta .notes { font-style: italic; }
-.entry-meta .notes::before { content: '· '; color: var(--ink-ghost); margin: 0 4px 0 6px; }
 
 .entry-macros {
   display: flex;
@@ -1258,7 +1257,7 @@ function renderEntry(e, idx, kcal, p, c, f) {
     ? `<span class="estimated" onclick="event.stopPropagation();resyncEntry('${e.id}')" title="Click to retry USDA match">estimated</span>`
     : '';
   const notes = e.notes ? `<span class="notes">"${escapeHtml(e.notes)}"</span>` : '';
-  const metaParts = [estimated, grams, notes].filter(Boolean).join('');
+  const metaParts = [grams, estimated, notes].filter(Boolean).join('<span class="sep">·</span>');
   const isExpanded = expandedId === e.id;
   return `
     <li class="entry${isExpanded ? ' expanded' : ''}" id="entry-${e.id}">
