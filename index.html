@@ -575,6 +575,129 @@ html { transition: background-color 0.4s ease; background: var(--paper); }
   letter-spacing: 0.1em;
   color: var(--ink-whisper);
 }
+.ing-search .create-cf {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  background: transparent;
+  border: 1px dashed var(--rule);
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+  padding: 9px 10px;
+  margin-top: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.ing-search .create-cf:hover {
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+  border-style: solid;
+}
+.ing-search .create-cf b {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Quick-add custom food form inside meal creator */
+.cf-quick {
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--terracotta);
+  border-radius: 2px;
+  background: var(--paper-warm);
+  padding: 14px 16px;
+  margin-top: 8px;
+  display: grid;
+  gap: 10px;
+}
+.cf-quick h5 {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-whisper);
+}
+.cf-quick .cf-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.cf-quick label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-whisper);
+}
+.cf-quick input {
+  font-family: var(--serif);
+  font-size: 14px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 6px 9px;
+  color: var(--ink);
+  outline: none;
+  width: 100%;
+  transition: border-color 0.18s ease;
+}
+.cf-quick input:focus { border-color: var(--terracotta); }
+.cf-quick .cf-macros {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.cf-quick .cf-macros .group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cf-quick .cf-macros .group span {
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-whisper);
+}
+.cf-quick .cf-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.cf-quick .cf-actions button {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 500;
+  border: none;
+  border-radius: 2px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.cf-quick .cf-actions .cancel {
+  background: none;
+  color: var(--ink-whisper);
+}
+.cf-quick .cf-actions .cancel:hover { color: var(--ink-soft); }
+.cf-quick .cf-actions .save {
+  background: var(--ink);
+  color: var(--paper-warm);
+}
+.cf-quick .cf-actions .save:hover { background: var(--terracotta); }
 .ing-totals {
   font-family: var(--mono);
   font-size: 11px;
@@ -1742,6 +1865,8 @@ function newRecipe() {
   modalState.view = 'edit-recipe';
   modalState.editing = null;
   recipeDraft = { name: '', notes: '', ingredients: [] };
+  ingLastQuery = '';
+  ingCfQuick = null;
   renderModal();
 }
 
@@ -1750,6 +1875,8 @@ function editRecipe(id) {
   if (!r) return;
   modalState.view = 'edit-recipe';
   modalState.editing = { id };
+  ingLastQuery = '';
+  ingCfQuick = null;
   recipeDraft = {
     name: r.name,
     notes: r.notes || '',
@@ -1764,6 +1891,36 @@ function editRecipe(id) {
     })),
   };
   renderModal();
+}
+
+function renderCfQuick() {
+  const c = ingCfQuick;
+  return `
+    <div class="cf-quick">
+      <h5>New custom food</h5>
+      <div class="cf-row">
+        <label>Name</label>
+        <input type="text" value="${escapeHtml(c.name)}" oninput="setCfQuickField('name', this.value)" placeholder="e.g. umami sauce" />
+      </div>
+      <div class="cf-row">
+        <label>Per 100g</label>
+        <div class="cf-macros">
+          <span class="group"><input type="number" step="0.1" value="${c.kcal_per_100g}" oninput="setCfQuickField('kcal_per_100g', this.value)" placeholder="0" /><span>kcal</span></span>
+          <span class="group"><input type="number" step="0.1" value="${c.protein_per_100g}" oninput="setCfQuickField('protein_per_100g', this.value)" placeholder="0" /><span>protein g</span></span>
+          <span class="group"><input type="number" step="0.1" value="${c.carbs_per_100g}" oninput="setCfQuickField('carbs_per_100g', this.value)" placeholder="0" /><span>carbs g</span></span>
+          <span class="group"><input type="number" step="0.1" value="${c.fat_per_100g}" oninput="setCfQuickField('fat_per_100g', this.value)" placeholder="0" /><span>fat g</span></span>
+        </div>
+      </div>
+      <div class="cf-row">
+        <label>Grams used</label>
+        <input type="number" min="1" step="1" value="${c.grams}" oninput="setCfQuickField('grams', this.value)" />
+      </div>
+      <div class="cf-actions">
+        <button type="button" class="cancel" onclick="closeCfQuick()">Cancel</button>
+        <button type="button" class="save" onclick="saveCfQuick()">Save &amp; add</button>
+      </div>
+    </div>
+  `;
 }
 
 function recipeTotals() {
@@ -1805,8 +1962,11 @@ function renderRecipeForm() {
           `).join('')}
         </div>
         <div class="ing-search">
-          <input type="search" placeholder="Search USDA or custom foods…" oninput="onIngredientSearch(this.value)" autocomplete="off" />
-          <ul class="results" id="ing-search-results"></ul>
+          ${ingCfQuick ? renderCfQuick() : `
+            <input type="search" placeholder="Search USDA or custom foods…" oninput="onIngredientSearch(this.value)" autocomplete="off" value="${escapeHtml(ingLastQuery)}" />
+            <ul class="results" id="ing-search-results"></ul>
+            <div id="ing-create-cf">${ingLastQuery ? `<button type="button" class="create-cf" onclick="openCfQuick('${escapeAttr(ingLastQuery)}')">＋ Create custom food: <b>${escapeHtml(ingLastQuery)}</b></button>` : ''}</div>
+          `}
         </div>
         <div class="ing-totals">
           <span><b>${r0(t.kcal)}</b>kcal</span>
@@ -1830,10 +1990,14 @@ function renderRecipeForm() {
 
 let ingSearchTimer = null;
 let ingSearchAbort = null;
+let ingLastQuery = '';
+let ingCfQuick = null; // { name, kcal, protein, carbs, fat, grams } — inline custom-food creator state
+
 async function onIngredientSearch(q) {
   if (ingSearchTimer) clearTimeout(ingSearchTimer);
   if (ingSearchAbort) ingSearchAbort.abort();
   q = q.trim();
+  ingLastQuery = q;
   const list = document.getElementById('ing-search-results');
   if (!list) return;
   if (q.length < 2) { list.innerHTML = ''; return; }
@@ -1874,16 +2038,85 @@ async function onIngredientSearch(q) {
           fiber_per_100g: 0, sugar_per_100g: 0, sodium_per_100mg: 0, sat_fat_per_100g: 0,
         })),
       ];
-      list.innerHTML = all.map((it, i) => `
+      const items = all.map((it) => `
         <li onclick='addIngredient(${JSON.stringify(it).replace(/'/g, "&#39;")})'>
           <span><span class="src">${it.source}</span> ${escapeHtml(it.raw_name)}</span>
           <span class="src">${r0(it.kcal_per_100g)} kcal/100g</span>
         </li>
       `).join('');
+      list.innerHTML = items;
     } catch (e) {
       if (e.name !== 'AbortError') console.error(e);
     }
+    // Always show the "create custom food" affordance below the results
+    // when the query is non-empty — the user might want to add it as a
+    // brand-new item even if some existing entries kind of match.
+    const wrap = document.getElementById('ing-create-cf');
+    if (wrap) {
+      wrap.innerHTML = q
+        ? `<button type="button" class="create-cf" onclick="openCfQuick('${escapeAttr(q)}')">＋ Create custom food: <b>${escapeHtml(q)}</b></button>`
+        : '';
+    }
   }, 220);
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/'/g, "\\'").replace(/"/g, "&quot;");
+}
+
+function openCfQuick(prefilledName) {
+  ingCfQuick = {
+    name: prefilledName || '',
+    kcal_per_100g: '',
+    protein_per_100g: '',
+    carbs_per_100g: '',
+    fat_per_100g: '',
+    grams: 100,
+  };
+  renderModal();
+}
+
+function closeCfQuick() {
+  ingCfQuick = null;
+  renderModal();
+}
+
+function setCfQuickField(field, value) {
+  if (!ingCfQuick) return;
+  ingCfQuick[field] = value;
+}
+
+async function saveCfQuick() {
+  if (!ingCfQuick) return;
+  const name = (ingCfQuick.name || '').trim();
+  if (!name) { alert('Name required'); return; }
+  const macros = {
+    kcal_per_100g: Number(ingCfQuick.kcal_per_100g) || 0,
+    protein_per_100g: Number(ingCfQuick.protein_per_100g) || 0,
+    carbs_per_100g: Number(ingCfQuick.carbs_per_100g) || 0,
+    fat_per_100g: Number(ingCfQuick.fat_per_100g) || 0,
+    fiber_per_100g: 0, sugar_per_100g: 0, sodium_per_100mg: 0, sat_fat_per_100g: 0,
+  };
+  const grams = Number(ingCfQuick.grams) || 100;
+  const res = await fetch(`${API_URL}?action=create-custom-food`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, ...macros, default_grams: grams }),
+  });
+  if (!res.ok) { alert('Save failed: ' + (await res.text())); return; }
+  const created = await res.json();
+  await loadLibrary(true);
+  // Add it as an ingredient to the recipe immediately.
+  recipeDraft.ingredients.push({
+    source: 'custom',
+    fdc_id: null,
+    custom_food_id: created.id,
+    raw_name: created.name,
+    grams,
+    ...macros,
+  });
+  ingCfQuick = null;
+  renderModal();
 }
 
 function addIngredient(it) {
