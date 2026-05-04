@@ -156,6 +156,75 @@ Deno.serve(async (req: Request) => {
     return json({ success: true });
   }
 
+  // POST ?action=log-items — direct typed-in log, no Claude/parsing.
+  // Accepts a list of items (USDA, custom food, recipe, or free-form) with
+  // grams and per-100g macros. Writes one food_logs row per item, all
+  // sharing the same raw_input + created_at minute so they group as one
+  // submission on the dashboard.
+  if (req.method === "POST" && action === "log-items") {
+    const body = await req.json().catch(() => ({}));
+    const userName = String(body.user || "").trim() || "Unknown";
+    const items = Array.isArray(body.items) ? body.items : [];
+    if (!items.length) return json({ error: "items required" }, 400);
+
+    // Resolve meal slot to canonical UTC entry_date.
+    const slot: Record<string, [number, number]> = {
+      breakfast: [8, 0], lunch: [12, 30], snack: [15, 0], dinner: [19, 0],
+    };
+    const date = new Date();
+    const offset = Number(body.date_offset_days);
+    if (Number.isFinite(offset) && offset !== 0) date.setDate(date.getDate() + offset);
+    const meal = String(body.meal || "").toLowerCase();
+    if (slot[meal]) {
+      const [h, m] = slot[meal];
+      date.setUTCHours(h, m, 0, 0);
+    } else {
+      // Auto-bucket from current UTC hour.
+      const h = date.getUTCHours();
+      const auto = h < 11 ? "breakfast" : h < 14 ? "lunch" : h < 17 ? "snack" : "dinner";
+      const [hh, mm] = slot[auto];
+      date.setUTCHours(hh, mm, 0, 0);
+    }
+    const entryDate = date.toISOString();
+    const rawInput = String(body.raw_input || items.map((i: any) => `${Math.round(Number(i.grams) || 0)}g ${i.name || i.raw_name || "food"}`).join(", "));
+
+    const rows = items.map((i: any) => {
+      const grams = Number(i.grams) || 0;
+      const k = grams / 100;
+      const kcal = (Number(i.kcal_per_100g) || 0) * k;
+      const protein = (Number(i.protein_per_100g) || 0) * k;
+      const carbs = (Number(i.carbs_per_100g) || 0) * k;
+      const fat = (Number(i.fat_per_100g) || 0) * k;
+      const fiber = (Number(i.fiber_per_100g) || 0) * k;
+      const sugar = (Number(i.sugar_per_100g) || 0) * k;
+      const sodium = (Number(i.sodium_per_100mg) || 0) * k;
+      const satFat = (Number(i.sat_fat_per_100g) || 0) * k;
+      const fdcId = i.fdc_id ? String(i.fdc_id) : null;
+      return {
+        raw_input: rawInput,
+        food_name: i.name || i.raw_name || "Food",
+        calories: kcal, protein_g: protein, carbs_g: carbs, fat_g: fat,
+        fiber_g: fiber, sugar_g: sugar, sodium_mg: sodium, saturated_fat_g: satFat,
+        notes: i.notes || null,
+        user_name: userName,
+        is_deleted: false,
+        entry_date: entryDate,
+        // If a USDA fdc_id was supplied, mark matched. If a recipe or custom
+        // food id is set, also matched (the badge reads the recipe/food id).
+        // Otherwise treat as estimated (free-form entry).
+        usda_status: fdcId || i.recipe_id || i.custom_food_id ? "matched" : "estimated",
+        usda_fdc_id: fdcId,
+        usda_grams: grams,
+        recipe_id: i.recipe_id || null,
+        custom_food_id: i.custom_food_id || null,
+      };
+    });
+
+    const { error: dbErr } = await supabase.from("food_logs").insert(rows);
+    if (dbErr) return json({ error: dbErr.message }, 500);
+    return json({ logged: rows.length, entry_date: entryDate });
+  }
+
   // Convert one logged submission (a food_log row + its siblings sharing
   // raw_input + minute) into a saved recipe. Subsequent voice logs that
   // mention this name will match the recipe.

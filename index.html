@@ -1447,6 +1447,12 @@ html { transition: background-color 0.4s ease; background: var(--paper); }
 <div class="page">
 
   <div class="toolbar-btns">
+    <button class="icon-btn log-btn" onclick="openQuickLog()" aria-label="Log meal" title="Log meal">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14"/>
+        <path d="M5 12h14"/>
+      </svg>
+    </button>
     <button class="icon-btn library-btn" onclick="openLibrary()" aria-label="Library" title="Library">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
@@ -1653,6 +1659,342 @@ async function relink(id, fdcId) {
   } catch (e) {
     alert('Relink failed: ' + (e.message || e));
   }
+}
+
+/* ───────── Quick log (web-side, no voice) ───────── */
+
+let quickLog = null; // { user, meal, items: [{...like recipe ingredients...}] }
+let qlSearchTimer = null;
+let qlSearchAbort = null;
+let qlLastQuery = '';
+let qlCfQuick = null;
+
+function inferMealSlot() {
+  const h = new Date().getUTCHours();
+  if (h < 11) return 'breakfast';
+  if (h < 14) return 'lunch';
+  if (h < 17) return 'snack';
+  return 'dinner';
+}
+
+async function openQuickLog() {
+  // Pick a sensible default user — first selected one if any.
+  const defaultUser = selectedUsers.has('Nevil') ? 'Nevil' : selectedUsers.has('Malou') ? 'Malou' : 'Nevil';
+  quickLog = { user: defaultUser, meal: inferMealSlot(), items: [] };
+  qlLastQuery = '';
+  qlCfQuick = null;
+  await loadLibrary();
+  renderQuickLog();
+}
+
+function closeQuickLog() {
+  quickLog = null;
+  document.getElementById('modal-root').innerHTML = '';
+}
+
+function qlTotals() {
+  const t = { kcal: 0, protein: 0, carbs: 0, fat: 0, grams: 0 };
+  for (const i of quickLog.items) {
+    const k = (Number(i.grams) || 0) / 100;
+    t.grams += Number(i.grams) || 0;
+    t.kcal += (Number(i.kcal_per_100g) || 0) * k;
+    t.protein += (Number(i.protein_per_100g) || 0) * k;
+    t.carbs += (Number(i.carbs_per_100g) || 0) * k;
+    t.fat += (Number(i.fat_per_100g) || 0) * k;
+  }
+  return t;
+}
+
+function renderQuickLog() {
+  const root = document.getElementById('modal-root');
+  const t = qlTotals();
+  const slotBtn = (k, label) =>
+    `<button type="button" class="${quickLog.meal === k ? 'active' : ''}" onclick="setQlMeal('${k}')">${label}</button>`;
+  const userBtn = (k) =>
+    `<button type="button" class="${quickLog.user === k ? 'active' : ''}" onclick="setQlUser('${k}')">${k}</button>`;
+  root.innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this) closeQuickLog()">
+      <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-head">
+          <h2>Log a <em>meal</em></h2>
+          <button class="modal-close" onclick="closeQuickLog()">Close ✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-row">
+            <label>Plate of</label>
+            <div class="meal-toggle">${userBtn('Nevil')}${userBtn('Malou')}</div>
+          </div>
+          <div class="form-row" style="margin-top:14px;">
+            <label>Meal</label>
+            <div class="meal-toggle">
+              ${slotBtn('breakfast', 'Breakfast')}
+              ${slotBtn('lunch', 'Lunch')}
+              ${slotBtn('snack', 'Snack')}
+              ${slotBtn('dinner', 'Dinner')}
+            </div>
+          </div>
+          <div style="margin-top:22px;">
+            <h4 style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.18em;color:var(--ink-whisper);margin-bottom:10px;">Items</h4>
+            <div class="ing-rows">
+              ${quickLog.items.map((i, idx) => `
+                <div class="ing-row">
+                  <span class="name"><span class="source">${i.source}</span>${escapeHtml(i.raw_name || '')}</span>
+                  <input class="grams" type="number" step="0.1" min="0" value="${i.grams}" oninput="updateQlGrams(${idx}, this.value)" />
+                  <button type="button" class="ing-del" onclick="removeQlItem(${idx})" title="Remove">×</button>
+                </div>
+              `).join('')}
+            </div>
+            <div class="ing-search">
+              ${qlCfQuick ? renderQlCfQuick() : `
+                <input type="search" placeholder="Search USDA, custom foods, or saved meals…" oninput="onQlSearch(this.value)" autocomplete="off" value="${escapeHtml(qlLastQuery)}" />
+                <ul class="results" id="ql-search-results"></ul>
+                <div id="ql-create-cf">${qlLastQuery ? `<button type="button" class="create-cf" onclick="openQlCfQuick('${escapeAttr(qlLastQuery)}')">＋ Create custom food: <b>${escapeHtml(qlLastQuery)}</b></button>` : ''}</div>
+              `}
+            </div>
+            <div class="ing-totals">
+              <span><b>${r0(t.kcal)}</b>kcal</span> &nbsp;·&nbsp;
+              <span><b>${r0(t.protein)}</b>g protein</span> &nbsp;·&nbsp;
+              <span><b>${r0(t.carbs)}</b>g carbs</span> &nbsp;·&nbsp;
+              <span><b>${r0(t.fat)}</b>g fat</span> &nbsp;·&nbsp;
+              <span><b>${r0(t.grams)}</b>g total</span>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="form-cancel" onclick="closeQuickLog()">Cancel</button>
+            <button type="button" class="form-save" onclick="submitQuickLog()" ${quickLog.items.length === 0 ? 'disabled' : ''}>Log meal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function setQlUser(u) { quickLog.user = u; renderQuickLog(); }
+function setQlMeal(m) { quickLog.meal = m; renderQuickLog(); }
+
+async function onQlSearch(q) {
+  if (qlSearchTimer) clearTimeout(qlSearchTimer);
+  if (qlSearchAbort) qlSearchAbort.abort();
+  q = q.trim();
+  qlLastQuery = q;
+  const list = document.getElementById('ql-search-results');
+  if (!list) return;
+  if (q.length < 2) { list.innerHTML = ''; return; }
+  qlSearchTimer = setTimeout(async () => {
+    qlSearchAbort = new AbortController();
+    try {
+      const ql = q.toLowerCase();
+      // Saved meals first
+      const recipeMatches = (libraryCache.recipes || [])
+        .filter(r => r.name.toLowerCase().includes(ql)).slice(0, 4)
+        .map(r => {
+          const tg = Number(r.total_grams) || 1;
+          const k = 100 / tg;
+          return {
+            source: 'meal',
+            recipe_id: r.id,
+            raw_name: r.name,
+            kcal_per_100g: Number(r.total_kcal) * k,
+            protein_per_100g: Number(r.total_protein) * k,
+            carbs_per_100g: Number(r.total_carbs) * k,
+            fat_per_100g: Number(r.total_fat) * k,
+            fiber_per_100g: Number(r.total_fiber) * k,
+            sugar_per_100g: Number(r.total_sugar) * k,
+            sodium_per_100mg: Number(r.total_sodium) * k,
+            sat_fat_per_100g: Number(r.total_sat_fat) * k,
+            default_grams: tg,
+          };
+        });
+      const customMatches = (libraryCache.custom_foods || [])
+        .filter(f => f.name.toLowerCase().includes(ql)).slice(0, 4)
+        .map(c => ({
+          source: 'custom',
+          custom_food_id: c.id,
+          raw_name: c.name,
+          kcal_per_100g: Number(c.kcal_per_100g),
+          protein_per_100g: Number(c.protein_per_100g),
+          carbs_per_100g: Number(c.carbs_per_100g),
+          fat_per_100g: Number(c.fat_per_100g),
+          fiber_per_100g: Number(c.fiber_per_100g),
+          sugar_per_100g: Number(c.sugar_per_100g),
+          sodium_per_100mg: Number(c.sodium_per_100mg),
+          sat_fat_per_100g: Number(c.sat_fat_per_100g),
+          default_grams: c.default_grams,
+        }));
+      // USDA via existing search endpoint
+      const res = await fetch(`${API_URL}?action=search&q=${encodeURIComponent(q)}`, { signal: qlSearchAbort.signal });
+      const data = await res.json();
+      const usdaResults = (data.results || []).slice(0, 6).map(u => ({
+        source: 'usda',
+        fdc_id: String(u.fdc_id),
+        raw_name: u.brand ? `${u.name} (${u.brand})` : u.name,
+        kcal_per_100g: u.kcal_per_100g,
+        protein_per_100g: u.protein_per_100g,
+        carbs_per_100g: u.carbs_per_100g,
+        fat_per_100g: u.fat_per_100g,
+        fiber_per_100g: 0, sugar_per_100g: 0, sodium_per_100mg: 0, sat_fat_per_100g: 0,
+      }));
+      const all = [...recipeMatches, ...customMatches, ...usdaResults];
+      list.innerHTML = all.map((it) => `
+        <li onclick='addQlItem(${JSON.stringify(it).replace(/'/g, "&#39;")})'>
+          <span><span class="src">${it.source}</span> ${escapeHtml(it.raw_name)}</span>
+          <span class="src">${r0(it.kcal_per_100g)} kcal/100g</span>
+        </li>
+      `).join('');
+      const wrap = document.getElementById('ql-create-cf');
+      if (wrap) {
+        wrap.innerHTML = q
+          ? `<button type="button" class="create-cf" onclick="openQlCfQuick('${escapeAttr(q)}')">＋ Create custom food: <b>${escapeHtml(q)}</b></button>`
+          : '';
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') console.error(e);
+    }
+  }, 220);
+}
+
+function addQlItem(it) {
+  quickLog.items.push({
+    source: it.source,
+    fdc_id: it.fdc_id || null,
+    custom_food_id: it.custom_food_id || null,
+    recipe_id: it.recipe_id || null,
+    raw_name: it.raw_name,
+    grams: it.default_grams ? Number(it.default_grams) : 100,
+    kcal_per_100g: it.kcal_per_100g,
+    protein_per_100g: it.protein_per_100g,
+    carbs_per_100g: it.carbs_per_100g,
+    fat_per_100g: it.fat_per_100g,
+    fiber_per_100g: it.fiber_per_100g || 0,
+    sugar_per_100g: it.sugar_per_100g || 0,
+    sodium_per_100mg: it.sodium_per_100mg || 0,
+    sat_fat_per_100g: it.sat_fat_per_100g || 0,
+  });
+  qlLastQuery = '';
+  renderQuickLog();
+}
+
+function removeQlItem(idx) {
+  quickLog.items.splice(idx, 1);
+  renderQuickLog();
+}
+
+function updateQlGrams(idx, value) {
+  const n = Number(value);
+  if (Number.isFinite(n) && n >= 0) quickLog.items[idx].grams = n;
+  // recompute totals only, keep input focus
+  const t = qlTotals();
+  const totalsEl = document.querySelector('.modal .ing-totals');
+  if (totalsEl) {
+    totalsEl.innerHTML = `
+      <span><b>${r0(t.kcal)}</b>kcal</span> &nbsp;·&nbsp;
+      <span><b>${r0(t.protein)}</b>g protein</span> &nbsp;·&nbsp;
+      <span><b>${r0(t.carbs)}</b>g carbs</span> &nbsp;·&nbsp;
+      <span><b>${r0(t.fat)}</b>g fat</span> &nbsp;·&nbsp;
+      <span><b>${r0(t.grams)}</b>g total</span>
+    `;
+  }
+}
+
+function openQlCfQuick(prefilled) {
+  qlCfQuick = {
+    name: prefilled || '', kcal_per_100g: '', protein_per_100g: '',
+    carbs_per_100g: '', fat_per_100g: '', grams: 100,
+  };
+  renderQuickLog();
+}
+function closeQlCfQuick() { qlCfQuick = null; renderQuickLog(); }
+function setQlCfQuickField(field, value) { if (qlCfQuick) qlCfQuick[field] = value; }
+
+function renderQlCfQuick() {
+  const c = qlCfQuick;
+  return `
+    <div class="cf-quick">
+      <h5>New custom food</h5>
+      <div class="cf-row">
+        <label>Name</label>
+        <input type="text" value="${escapeHtml(c.name)}" oninput="setQlCfQuickField('name', this.value)" placeholder="e.g. umami sauce" />
+      </div>
+      <div class="cf-row">
+        <label>Per 100g</label>
+        <div class="cf-macros">
+          <span class="group"><input type="number" step="0.1" value="${c.kcal_per_100g}" oninput="setQlCfQuickField('kcal_per_100g', this.value)" placeholder="0" /><span>kcal</span></span>
+          <span class="group"><input type="number" step="0.1" value="${c.protein_per_100g}" oninput="setQlCfQuickField('protein_per_100g', this.value)" placeholder="0" /><span>protein g</span></span>
+          <span class="group"><input type="number" step="0.1" value="${c.carbs_per_100g}" oninput="setQlCfQuickField('carbs_per_100g', this.value)" placeholder="0" /><span>carbs g</span></span>
+          <span class="group"><input type="number" step="0.1" value="${c.fat_per_100g}" oninput="setQlCfQuickField('fat_per_100g', this.value)" placeholder="0" /><span>fat g</span></span>
+        </div>
+      </div>
+      <div class="cf-row">
+        <label>Grams used</label>
+        <input type="number" min="1" step="1" value="${c.grams}" oninput="setQlCfQuickField('grams', this.value)" />
+      </div>
+      <div class="cf-actions">
+        <button type="button" class="cancel" onclick="closeQlCfQuick()">Cancel</button>
+        <button type="button" class="save" onclick="saveQlCfQuick()">Save &amp; add</button>
+      </div>
+    </div>
+  `;
+}
+
+async function saveQlCfQuick() {
+  if (!qlCfQuick) return;
+  const name = (qlCfQuick.name || '').trim();
+  if (!name) { alert('Name required'); return; }
+  const macros = {
+    kcal_per_100g: Number(qlCfQuick.kcal_per_100g) || 0,
+    protein_per_100g: Number(qlCfQuick.protein_per_100g) || 0,
+    carbs_per_100g: Number(qlCfQuick.carbs_per_100g) || 0,
+    fat_per_100g: Number(qlCfQuick.fat_per_100g) || 0,
+    fiber_per_100g: 0, sugar_per_100g: 0, sodium_per_100mg: 0, sat_fat_per_100g: 0,
+  };
+  const grams = Number(qlCfQuick.grams) || 100;
+  const res = await fetch(`${API_URL}?action=create-custom-food`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, ...macros, default_grams: grams }),
+  });
+  if (!res.ok) { alert('Save failed: ' + (await res.text())); return; }
+  const created = await res.json();
+  await loadLibrary(true);
+  quickLog.items.push({
+    source: 'custom', fdc_id: null, custom_food_id: created.id, recipe_id: null,
+    raw_name: created.name, grams, ...macros,
+  });
+  qlCfQuick = null;
+  qlLastQuery = '';
+  renderQuickLog();
+}
+
+async function submitQuickLog() {
+  if (!quickLog || !quickLog.items.length) return;
+  const body = {
+    user: quickLog.user,
+    meal: quickLog.meal,
+    items: quickLog.items.map((i) => ({
+      name: i.raw_name,
+      raw_name: i.raw_name,
+      fdc_id: i.fdc_id,
+      custom_food_id: i.custom_food_id,
+      recipe_id: i.recipe_id,
+      grams: i.grams,
+      kcal_per_100g: i.kcal_per_100g,
+      protein_per_100g: i.protein_per_100g,
+      carbs_per_100g: i.carbs_per_100g,
+      fat_per_100g: i.fat_per_100g,
+      fiber_per_100g: i.fiber_per_100g,
+      sugar_per_100g: i.sugar_per_100g,
+      sodium_per_100mg: i.sodium_per_100mg,
+      sat_fat_per_100g: i.sat_fat_per_100g,
+    })),
+  };
+  const res = await fetch(`${API_URL}?action=log-items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) { alert('Log failed: ' + (await res.text())); return; }
+  closeQuickLog();
+  await fetchData();
 }
 
 /* ───────── Library (custom foods + meals/recipes) ───────── */
