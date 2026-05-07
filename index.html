@@ -1081,6 +1081,58 @@ html { transition: background-color 0.4s ease; background: var(--paper); }
   font-size: 12px;
   color: var(--ink-whisper);
 }
+.metric-goal {
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-whisper);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.metric-goal b {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-soft);
+}
+.metric-goal .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--ink-ghost);
+  flex-shrink: 0;
+}
+.metric-goal .dot.under  { background: var(--ink-ghost); }
+.metric-goal .dot.in     { background: var(--sage); }
+.metric-goal .dot.over   { background: var(--rose); }
+.lede-goal {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-whisper);
+  margin-top: -16px;
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lede-goal b {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-soft);
+}
 .metric.protein .metric-value { color: var(--sage); }
 .metric.carbs .metric-value { color: var(--saffron); }
 .metric.fat .metric-value { color: var(--rose); }
@@ -1705,6 +1757,36 @@ const API_URL = INJECTED_API_URL === API_URL_PLACEHOLDER
 let selectedUsers = new Set(['Nevil', 'Malou']);
 let currentDays = 7;
 let allLogs = [];
+
+// Per-user daily macro goals. Edit these inline (or wire a settings UI later).
+// Goals are shown as the row below the averages whenever exactly one person is
+// selected — when both are filtered in, the household isn't comparable.
+const MACRO_GOALS = {
+  Nevil: {
+    kcal:    { min: 2200, max: 2400 },
+    protein: { min: 130,  max: 135  },
+    carbs:   { min: 150,  max: 180  },
+    fat:     { min: 80,   max: 90   },
+  },
+  // Malou: { kcal: {...}, protein: {...}, carbs: {...}, fat: {...} },
+};
+
+function activeGoals() {
+  if (selectedUsers.size !== 1) return null;
+  const [u] = selectedUsers;
+  return MACRO_GOALS[u] || null;
+}
+
+function rangeStatus(value, range) {
+  if (!range) return null;
+  if (value < range.min) return 'under';
+  if (value > range.max) return 'over';
+  return 'in';
+}
+
+function fmtRange(r, unit = '') {
+  return `${r.min.toLocaleString('en-US')}–${r.max.toLocaleString('en-US')}${unit}`;
+}
 
 document.getElementById('masthead-year').textContent = new Date().getFullYear();
 
@@ -3042,6 +3124,17 @@ function renderSummary(s) {
   const proteinSub = single ? 'today' : `${s.totalP}g total`;
   const carbsSub = single ? 'today' : `${s.totalC}g total`;
   const fatSub = single ? 'today' : `${s.totalF}g total`;
+
+  const goals = activeGoals();
+  const goalLine = (val, range, unit) => {
+    if (!range) return '';
+    const st = rangeStatus(val, range);
+    return `<div class="metric-goal"><span class="dot ${st}"></span>goal&nbsp;<b>${fmtRange(range, unit)}</b></div>`;
+  };
+  const ledeGoalHtml = goals
+    ? `<div class="lede-goal"><span>Daily goal</span><b>${fmtRange(goals.kcal)} kcal</b></div>`
+    : '';
+
   return `
     <section class="summary">
       <div class="summary-kicker">
@@ -3052,21 +3145,25 @@ function renderSummary(s) {
         <span class="lede-num">${ledeNum.toLocaleString('en-US')}</span>
         <span class="lede-unit">${ledeUnit}</span>
       </div>
+      ${ledeGoalHtml}
       <div class="metrics">
         <div class="metric protein">
           <span class="metric-label">Protein${single ? '' : ' / day'}</span>
           <span class="metric-value">${proteinValue}<span class="unit">g</span></span>
           <span class="metric-sub">${proteinSub}</span>
+          ${goalLine(proteinValue, goals?.protein, 'g')}
         </div>
         <div class="metric carbs">
           <span class="metric-label">Carbs${single ? '' : ' / day'}</span>
           <span class="metric-value">${carbsValue}<span class="unit">g</span></span>
           <span class="metric-sub">${carbsSub}</span>
+          ${goalLine(carbsValue, goals?.carbs, 'g')}
         </div>
         <div class="metric fat">
           <span class="metric-label">Fat${single ? '' : ' / day'}</span>
           <span class="metric-value">${fatValue}<span class="unit">g</span></span>
           <span class="metric-sub">${fatSub}</span>
+          ${goalLine(fatValue, goals?.fat, 'g')}
         </div>
         <div class="metric">
           <span class="metric-label">Entries</span>
