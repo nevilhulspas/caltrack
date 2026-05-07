@@ -1083,7 +1083,7 @@ html { transition: background-color 0.4s ease; background: var(--paper); }
 }
 .metric.protein .metric-value { color: var(--sage); }
 .metric.carbs .metric-value { color: var(--saffron); }
-.metric.match .metric-value { color: var(--terracotta); }
+.metric.fat .metric-value { color: var(--rose); }
 
 /* ──────────────────────────── Day spreads ──────────────────────────── */
 
@@ -3020,7 +3020,7 @@ function renderData(logs) {
   let html = renderSummary({
     avgKcal, avgP, avgC, avgF,
     totalKcal: r0(totalKcal), totalP: r0(totalP), totalC: r0(totalC), totalF: r0(totalF),
-    dayCount, entries: filtered.length, matchPct, matched, tracked,
+    dayCount, entries: filtered.length,
   });
 
   /* day spreads, newest first */
@@ -3038,8 +3038,10 @@ function renderSummary(s) {
   const ledeUnit = single ? '<b>kcal</b> today' : '<b>kcal</b> per day, on average';
   const proteinValue = single ? s.totalP : s.avgP;
   const carbsValue = single ? s.totalC : s.avgC;
+  const fatValue = single ? s.totalF : s.avgF;
   const proteinSub = single ? 'today' : `${s.totalP}g total`;
   const carbsSub = single ? 'today' : `${s.totalC}g total`;
+  const fatSub = single ? 'today' : `${s.totalF}g total`;
   return `
     <section class="summary">
       <div class="summary-kicker">
@@ -3061,15 +3063,15 @@ function renderSummary(s) {
           <span class="metric-value">${carbsValue}<span class="unit">g</span></span>
           <span class="metric-sub">${carbsSub}</span>
         </div>
+        <div class="metric fat">
+          <span class="metric-label">Fat${single ? '' : ' / day'}</span>
+          <span class="metric-value">${fatValue}<span class="unit">g</span></span>
+          <span class="metric-sub">${fatSub}</span>
+        </div>
         <div class="metric">
           <span class="metric-label">Entries</span>
           <span class="metric-value">${s.entries}</span>
           <span class="metric-sub">${s.dayCount} ${s.dayCount === 1 ? 'day' : 'days'}</span>
-        </div>
-        <div class="metric match">
-          <span class="metric-label">USDA match</span>
-          <span class="metric-value">${s.matchPct === null ? '—' : s.matchPct + '<span class="unit">%</span>'}</span>
-          <span class="metric-sub">${s.matchPct === null ? 'no data' : `${s.matched} of ${s.tracked}`}</span>
         </div>
       </div>
     </section>
