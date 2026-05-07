@@ -609,6 +609,78 @@ html { transition: background-color 0.4s ease; background: var(--paper); }
 .ing-row .ing-macros .sep { color: var(--ink-ghost); margin: 0 4px; }
 .ing-row input.grams { grid-column: 2 / 3; grid-row: 1 / 3; }
 .ing-row .ing-del { grid-column: 3 / 4; grid-row: 1 / 3; }
+.ing-row .servings-wrap {
+  grid-column: 2 / 3;
+  grid-row: 1 / 3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.ing-row .servings-wrap input.servings {
+  font-family: var(--serif);
+  font-size: 14px;
+  text-align: right;
+  background: var(--paper-warm);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 5px 8px;
+  width: 50px;
+  color: var(--ink);
+  outline: none;
+}
+.ing-row .servings-wrap input.servings:focus { border-color: var(--terracotta); }
+.ing-row .servings-wrap .label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-whisper);
+}
+
+/* Quick-add chips for most-used meals */
+.ql-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+.ql-chips .label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-whisper);
+  width: 100%;
+  margin-bottom: 2px;
+}
+.ql-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-family: var(--serif);
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.ql-chip:hover {
+  background: var(--card-hover);
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+}
+.ql-chip .uses {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  color: var(--ink-whisper);
+  font-weight: 500;
+}
+.ql-chip[disabled] { opacity: 0.4; cursor: default; pointer-events: none; }
 .ing-row input.grams {
   font-family: var(--serif);
   font-size: 14px;
@@ -1908,11 +1980,19 @@ function renderQuickLog() {
                 <div class="ing-row" data-ql-idx="${idx}">
                   <span class="name"><span class="source">${i.source}</span>${escapeHtml(i.raw_name || '')}</span>
                   <span class="ing-macros">${ingMacrosHtml(i)}</span>
-                  <input class="grams" type="number" step="0.1" min="0" value="${i.grams}" oninput="updateQlGrams(${idx}, this.value)" />
+                  ${i.source === 'meal' ? `
+                    <div class="servings-wrap">
+                      <input class="servings" type="number" step="1" min="1" value="${i.servings || 1}" oninput="updateQlServings(${idx}, this.value)" />
+                      <span class="label">${(i.servings || 1) === 1 ? 'serving' : 'servings'}</span>
+                    </div>
+                  ` : `
+                    <input class="grams" type="number" step="0.1" min="0" value="${i.grams}" oninput="updateQlGrams(${idx}, this.value)" />
+                  `}
                   <button type="button" class="ing-del" onclick="removeQlItem(${idx})" title="Remove">×</button>
                 </div>
               `).join('')}
             </div>
+            ${renderQlQuickChips()}
             <div class="ing-search">
               ${qlCfQuick ? renderQlCfQuick() : `
                 <input type="search" placeholder="Search USDA, custom foods, or saved meals…" oninput="onQlSearch(this.value)" autocomplete="off" value="${escapeHtml(qlLastQuery)}" />
@@ -2024,13 +2104,20 @@ async function onQlSearch(q) {
 }
 
 function addQlItem(it) {
+  // Saved meals are quantified in servings (1 by default). One serving =
+  // recipe.total_grams; the grams field stays the canonical scaler under the
+  // hood so macro math doesn't have to special-case meals downstream.
+  const isMeal = it.source === 'meal';
+  const defaultGrams = it.default_grams ? Number(it.default_grams) : 100;
   quickLog.items.push({
     source: it.source,
     fdc_id: it.fdc_id || null,
     custom_food_id: it.custom_food_id || null,
     recipe_id: it.recipe_id || null,
     raw_name: it.raw_name,
-    grams: it.default_grams ? Number(it.default_grams) : 100,
+    grams: defaultGrams,
+    default_grams: defaultGrams,
+    servings: isMeal ? 1 : undefined,
     kcal_per_100g: it.kcal_per_100g,
     protein_per_100g: it.protein_per_100g,
     carbs_per_100g: it.carbs_per_100g,
@@ -2044,15 +2131,56 @@ function addQlItem(it) {
   renderQuickLog();
 }
 
+/** Quick-add chip click — drop a saved meal in as 1 serving. */
+function addQlMealById(recipeId) {
+  const r = (libraryCache?.recipes || []).find((x) => x.id === recipeId);
+  if (!r) return;
+  // Don't double-add the same meal already in items
+  if (quickLog.items.some((i) => i.recipe_id === recipeId)) return;
+  const tg = Number(r.total_grams) || 1;
+  const k = 100 / tg;
+  addQlItem({
+    source: 'meal',
+    recipe_id: r.id,
+    raw_name: r.name,
+    kcal_per_100g: Number(r.total_kcal) * k,
+    protein_per_100g: Number(r.total_protein) * k,
+    carbs_per_100g: Number(r.total_carbs) * k,
+    fat_per_100g: Number(r.total_fat) * k,
+    fiber_per_100g: Number(r.total_fiber) * k,
+    sugar_per_100g: Number(r.total_sugar) * k,
+    sodium_per_100mg: Number(r.total_sodium) * k,
+    sat_fat_per_100g: Number(r.total_sat_fat) * k,
+    default_grams: tg,
+  });
+}
+
+function renderQlQuickChips() {
+  const recipes = (libraryCache?.recipes || [])
+    .filter((r) => (r.use_count || 0) > 0)
+    .sort((a, b) => (b.use_count || 0) - (a.use_count || 0))
+    .slice(0, 6);
+  if (!recipes.length) return '';
+  const used = new Set(quickLog.items.map((i) => i.recipe_id).filter(Boolean));
+  return `
+    <div class="ql-chips">
+      <span class="label">Quick add — your most-logged meals</span>
+      ${recipes.map((r) => `
+        <button type="button" class="ql-chip" ${used.has(r.id) ? 'disabled' : ''} onclick="addQlMealById('${r.id}')" title="${escapeAttr(r.name)} — used ${r.use_count}×">
+          ${escapeHtml(r.name)}
+          <span class="uses">${r.use_count}×</span>
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
+
 function removeQlItem(idx) {
   quickLog.items.splice(idx, 1);
   renderQuickLog();
 }
 
-function updateQlGrams(idx, value) {
-  const n = Number(value);
-  if (Number.isFinite(n) && n >= 0) quickLog.items[idx].grams = n;
-  // refresh per-row macros + totals without re-rendering (keeps focus)
+function refreshQlRowAndTotals(idx) {
   const rowMacros = document.querySelector(`.ing-row[data-ql-idx="${idx}"] .ing-macros`);
   if (rowMacros) rowMacros.innerHTML = ingMacrosHtml(quickLog.items[idx]);
   const t = qlTotals();
@@ -2066,6 +2194,24 @@ function updateQlGrams(idx, value) {
       <span><b>${r0(t.grams)}</b>g total</span>
     `;
   }
+}
+
+function updateQlGrams(idx, value) {
+  const n = Number(value);
+  if (Number.isFinite(n) && n >= 0) quickLog.items[idx].grams = n;
+  refreshQlRowAndTotals(idx);
+}
+
+function updateQlServings(idx, value) {
+  const n = Math.max(1, Math.round(Number(value) || 1));
+  const item = quickLog.items[idx];
+  if (!item) return;
+  item.servings = n;
+  item.grams = n * (Number(item.default_grams) || 1);
+  // Update servings/serving label without rerender (preserves focus).
+  const wrap = document.querySelector(`.ing-row[data-ql-idx="${idx}"] .servings-wrap .label`);
+  if (wrap) wrap.textContent = n === 1 ? 'serving' : 'servings';
+  refreshQlRowAndTotals(idx);
 }
 
 function openQlCfQuick(prefilled) {

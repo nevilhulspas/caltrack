@@ -51,6 +51,7 @@ export interface Recipe {
   total_sugar: number;
   total_sodium: number;
   total_sat_fat: number;
+  use_count?: number;
   ingredients?: RecipeIngredient[];
 }
 
@@ -106,6 +107,22 @@ export async function loadRecipes(
     .order("name");
   if (error) throw new Error(`Loading recipes failed: ${error.message}`);
   const recipes = (data ?? []) as Recipe[];
+  if (!recipes.length) return recipes;
+
+  // Pull use counts from food_logs in one query — used to surface the most
+  // logged meals as quick-add chips in the dashboard's Log a meal modal.
+  const { data: usageRows } = await supabase
+    .from("food_logs")
+    .select("recipe_id")
+    .eq("is_deleted", false)
+    .not("recipe_id", "is", null);
+  const counts = new Map<string, number>();
+  for (const row of (usageRows ?? []) as { recipe_id: string | null }[]) {
+    if (!row.recipe_id) continue;
+    counts.set(row.recipe_id, (counts.get(row.recipe_id) ?? 0) + 1);
+  }
+  for (const r of recipes) (r as Recipe).use_count = counts.get(r.id) ?? 0;
+
   if (!withIngredients) return recipes;
 
   const { data: ings, error: ingErr } = await supabase
