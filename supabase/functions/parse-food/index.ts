@@ -129,6 +129,31 @@ function calculateEntryDate(dateOffsetDays: number | null, mealTime: string | nu
   return date;
 }
 
+// Build a minimal Extracted that captures the raw transcript as a single
+// estimated item. Used as a graceful fallback whenever Claude is unreachable
+// or returns malformed JSON — better to log _something_ the user can edit
+// than to lose the meal entirely with a 500.
+function fallbackExtracted(food: string): Extracted {
+  return {
+    items: [{
+      query: food.slice(0, 80),
+      grams: 100,
+      estimated_calories: 0,
+      estimated_protein_g: 0,
+      estimated_carbs_g: 0,
+      estimated_fat_g: 0,
+      estimated_fiber_g: 0,
+      estimated_sugar_g: 0,
+      estimated_sodium_mg: 0,
+      estimated_saturated_fat_g: 0,
+    }],
+    food_name: food.slice(0, 80),
+    notes: "Parsing failed — please edit",
+    date_offset_days: null,
+    meal_time: null,
+  };
+}
+
 async function extractWithClaude(food: string, libraryNames: string[] = []): Promise<Extracted> {
   // Tell Claude about the user's saved library so it doesn't split named
   // meals (e.g. "Nevils protein meal") into generic ingredients. If any of
@@ -150,13 +175,27 @@ async function extractWithClaude(food: string, libraryNames: string[] = []): Pro
       messages: [{ role: "user", content: `${EXTRACT_PROMPT}${librarySection}\n\nFood: ${food}` }],
     }),
   });
-  if (!resp.ok) throw new Error(`Claude error: ${await resp.text()}`);
+  if (!resp.ok) {
+    console.error(`Claude HTTP error: ${resp.status} ${await resp.text()}`);
+    return fallbackExtracted(food);
+  }
   const data = await resp.json();
-  let text = (data.content[0].text as string).trim();
+  const text0 = (data?.content?.[0]?.text as string | undefined) ?? "";
+  let text = text0.trim();
   if (text.startsWith("```")) {
     text = text.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
   }
-  return JSON.parse(text) as Extracted;
+  try {
+    const parsed = JSON.parse(text) as Extracted;
+    if (!parsed || !Array.isArray(parsed.items) || parsed.items.length === 0) {
+      console.error("Claude returned no items:", text.slice(0, 500));
+      return fallbackExtracted(food);
+    }
+    return parsed;
+  } catch (e) {
+    console.error("Claude JSON parse failed:", (e as Error).message, text.slice(0, 500));
+    return fallbackExtracted(food);
+  }
 }
 
 // Ask Claude to pick the best match for a given item from the top FDC
@@ -351,26 +390,25 @@ Deno.serve(async (req: Request) => {
           sodium_mg: item.estimated_sodium_mg, saturated_fat_g: item.estimated_saturated_fat_g,
         };
 
-        // Library first
-        const lib = findLibraryMatch(item.query, library);
-        if (lib) {
-          // If user didn't specify grams or specified a near-default, snap
-          // to the library item's default_grams so totals match the saved
-          // recipe / custom food rather than partial scaling.
-          const grams = item.grams && item.grams > 0 ? item.grams : lib.default_grams;
-          const macros = libraryMacros(lib, grams);
-          return {
-            query: item.query, grams, status: "library",
-            fdc_id: null,
-            recipe_id: lib.kind === "recipe" ? lib.id : null,
-            custom_food_id: lib.kind === "custom_food" ? lib.id : null,
-            matched_name: lib.name,
-            ...macros,
-          };
-        }
-
-        // USDA fallback
         try {
+          // Library first — substring/token match against custom foods + recipes.
+          const lib = findLibraryMatch(item.query, library);
+          if (lib) {
+            // Snap to default_grams when user didn't say a quantity so totals
+            // match the saved recipe rather than scaling fractionally.
+            const grams = item.grams && item.grams > 0 ? item.grams : lib.default_grams;
+            const macros = libraryMacros(lib, grams);
+            return {
+              query: item.query, grams, status: "library",
+              fdc_id: null,
+              recipe_id: lib.kind === "recipe" ? lib.id : null,
+              custom_food_id: lib.kind === "custom_food" ? lib.id : null,
+              matched_name: lib.name,
+              ...macros,
+            };
+          }
+
+          // USDA fallback
           const candidates = await searchFoods(item.query);
           const match = await pickBestMatchWithLlm(item, candidates);
           if (match) {
@@ -383,7 +421,11 @@ Deno.serve(async (req: Request) => {
           }
           return fallback;
         } catch (e) {
-          console.error(`FDC search failed for "${item.query}":`, (e as Error).message);
+          // Anything in this branch (library lookup, FDC search, Haiku rerank,
+          // unexpected null/shape from a dependency) lands here. Returning the
+          // fallback means a single bad item degrades to Claude's estimate
+          // rather than 500-ing the whole submission.
+          console.error(`Item "${item.query}" failed:`, (e as Error).message);
           return fallback;
         }
       }),

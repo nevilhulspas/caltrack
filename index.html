@@ -1305,6 +1305,21 @@ html { transition: background-color 0.4s ease; background: var(--paper); }
   background: var(--ink);
   color: var(--paper-warm);
 }
+
+input.ql-date {
+  font-family: var(--mono);
+  font-size: 13px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 7px 10px;
+  color: var(--ink);
+  outline: none;
+  max-width: 180px;
+  color-scheme: light dark;
+  transition: border-color 0.18s ease;
+}
+input.ql-date:focus { border-color: var(--terracotta); }
 .editor-grams {
   display: flex;
   flex-direction: column;
@@ -1818,10 +1833,18 @@ function inferMealSlot() {
   return 'dinner';
 }
 
+function todayDateISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
 async function openQuickLog() {
   // Pick a sensible default user — first selected one if any.
   const defaultUser = selectedUsers.has('Nevil') ? 'Nevil' : selectedUsers.has('Malou') ? 'Malou' : 'Nevil';
-  quickLog = { user: defaultUser, meal: inferMealSlot(), items: [] };
+  quickLog = { user: defaultUser, meal: inferMealSlot(), date: todayDateISO(), items: [] };
   qlLastQuery = '';
   qlCfQuick = null;
   await loadLibrary();
@@ -1864,6 +1887,10 @@ function renderQuickLog() {
           <div class="form-row">
             <label>Plate of</label>
             <div class="meal-toggle">${userBtn('Nevil')}${userBtn('Malou')}</div>
+          </div>
+          <div class="form-row" style="margin-top:14px;">
+            <label>Date</label>
+            <input class="ql-date" type="date" value="${quickLog.date}" max="${todayDateISO()}" oninput="setQlDate(this.value)" />
           </div>
           <div class="form-row" style="margin-top:14px;">
             <label>Meal</label>
@@ -1913,6 +1940,7 @@ function renderQuickLog() {
 
 function setQlUser(u) { quickLog.user = u; renderQuickLog(); }
 function setQlMeal(m) { quickLog.meal = m; renderQuickLog(); }
+function setQlDate(d) { if (d) quickLog.date = d; }
 
 async function onQlSearch(q) {
   if (qlSearchTimer) clearTimeout(qlSearchTimer);
@@ -2109,11 +2137,22 @@ async function saveQlCfQuick() {
   renderQuickLog();
 }
 
+function dayOffsetFromToday(yyyymmdd) {
+  if (!yyyymmdd) return 0;
+  const [y, m, d] = yyyymmdd.split('-').map(Number);
+  // Compare local-noon for both dates so DST shifts don't bleed the diff.
+  const sel = new Date(y, m - 1, d, 12, 0, 0);
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  return Math.round((sel - today) / 86_400_000);
+}
+
 async function submitQuickLog() {
   if (!quickLog || !quickLog.items.length) return;
   const body = {
     user: quickLog.user,
     meal: quickLog.meal,
+    date_offset_days: dayOffsetFromToday(quickLog.date),
     items: quickLog.items.map((i) => ({
       name: i.raw_name,
       raw_name: i.raw_name,
