@@ -1772,9 +1772,13 @@ const MACRO_GOALS = {
 };
 
 function activeGoals() {
-  if (selectedUsers.size !== 1) return null;
-  const [u] = selectedUsers;
-  return MACRO_GOALS[u] || null;
+  // Show goals when exactly one selected user has goals defined. If both
+  // people are toggled in but only one has targets set, we still render
+  // that one's goals (labelled with the user's name) instead of hiding.
+  const withGoals = [...selectedUsers].filter((u) => MACRO_GOALS[u]);
+  if (withGoals.length !== 1) return null;
+  const u = withGoals[0];
+  return { user: u, ...MACRO_GOALS[u] };
 }
 
 function rangeStatus(value, range) {
@@ -3126,13 +3130,21 @@ function renderSummary(s) {
   const fatSub = single ? 'today' : `${s.totalF}g total`;
 
   const goals = activeGoals();
+  // Only compare the average to the goal range with a status dot when the
+  // selected data is for the goal owner alone — otherwise the average is a
+  // household number and the comparison would mislead.
+  const goalsCompare = goals && selectedUsers.size === 1 && selectedUsers.has(goals.user);
   const goalLine = (val, range, unit) => {
     if (!range) return '';
-    const st = rangeStatus(val, range);
-    return `<div class="metric-goal"><span class="dot ${st}"></span>goal&nbsp;<b>${fmtRange(range, unit)}</b></div>`;
+    const st = goalsCompare ? rangeStatus(val, range) : '';
+    const dot = goalsCompare ? `<span class="dot ${st}"></span>` : '';
+    return `<div class="metric-goal">${dot}goal&nbsp;<b>${fmtRange(range, unit)}</b></div>`;
   };
+  const goalLabel = goals && selectedUsers.size > 1
+    ? `Daily goal · ${escapeHtml(goals.user)}`
+    : 'Daily goal';
   const ledeGoalHtml = goals
-    ? `<div class="lede-goal"><span>Daily goal</span><b>${fmtRange(goals.kcal)} kcal</b></div>`
+    ? `<div class="lede-goal"><span>${goalLabel}</span><b>${fmtRange(goals.kcal)} kcal</b></div>`
     : '';
 
   return `
