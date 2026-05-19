@@ -46,12 +46,22 @@ Schema:
 Rules:
 - Split a meal into one item per food. "Chicken with rice" => two items.
 - "query" is the descriptive name that will be saved to the user's food log.
-- If grams aren't stated, estimate a realistic single serving in grams.
+- grams must ALWAYS be the TOTAL grams the user actually consumed. Never 0, never per-unit weight.
+- When the user counts items ("two eggs", "drie boterhammen", "three slices of bread", "a scoop of protein", "an apple"), multiply by a realistic per-item weight to get the total grams. Use these defaults when the user doesn't specify a size:
+  - Medium chicken egg: 50g shelled. "two eggs" => grams: 100
+  - Slice of bread: 30g. "three slices" => grams: 90
+  - Slice of Dutch toast / boterham: 35g. "twee boterhammen" => grams: 70
+  - Scoop of whey protein: 30g
+  - Medium apple/orange/pear: 180g
+  - Medium banana: 120g
+  - Slice of pizza: 100g
+  - Egg yolk only: 18g; egg white only: 33g
+- If grams aren't stated and the food isn't a discrete countable item, estimate a realistic single serving in grams.
 - The estimated_* macros are AUTHORITATIVE — they are written directly to the user's database and Apple Health. There is no database lookup behind this. Be accurate.
 - Account for cooking state ("cooked", "raw", "grilled", "fried") — it changes macros significantly. Default to cooked weight unless the user clearly meant raw.
 - For brand-name products (e.g. "Coke Zero", "Ben & Jerry's"), use the brand's published nutrition facts.
 - For composite/restaurant foods, give a realistic estimate based on typical preparation.
-- Numbers must be for the stated grams, not per-100g.
+- Numbers must be for the stated total grams, not per-100g.
 
 Extracting meal_time and date_offset_days:
 - Listen for explicit meal cues anywhere in the input — "for lunch", "had breakfast", "at dinner", "as a snack", "voor de lunch", "bij het ontbijt", etc. — and set meal_time accordingly. The cue does not have to be at the start.
