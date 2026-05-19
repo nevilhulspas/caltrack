@@ -392,12 +392,15 @@ Deno.serve(async (req: Request) => {
 
     const { data: row, error } = await supabase
       .from("food_logs")
-      .select("id, usda_fdc_id, usda_status")
+      .select(
+        "id, usda_fdc_id, usda_status, usda_grams, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg, saturated_fat_g",
+      )
       .eq("id", id)
       .single();
     if (error || !row) return json({ error: "Entry not found" }, 404);
 
     const update: Record<string, unknown> = { usda_grams: grams };
+    let recomputed = false;
 
     if (row.usda_fdc_id) {
       try {
@@ -405,15 +408,33 @@ Deno.serve(async (req: Request) => {
         if (food) {
           const macros = scaleToGrams(food, grams);
           Object.assign(update, macros);
+          recomputed = true;
         }
       } catch (e) {
         console.error("getFood failed during update-grams:", (e as Error).message);
+      }
+    } else if (row.usda_status === "ai") {
+      // AI entries: Claude wrote macros for the original grams. Rescale them
+      // proportionally so the row stays internally consistent. Skip if the
+      // stored grams are missing/zero — we can't compute a scale factor.
+      const oldGrams = Number(row.usda_grams);
+      if (Number.isFinite(oldGrams) && oldGrams > 0) {
+        const scale = grams / oldGrams;
+        update.calories = (Number(row.calories) || 0) * scale;
+        update.protein_g = (Number(row.protein_g) || 0) * scale;
+        update.carbs_g = (Number(row.carbs_g) || 0) * scale;
+        update.fat_g = (Number(row.fat_g) || 0) * scale;
+        update.fiber_g = (Number(row.fiber_g) || 0) * scale;
+        update.sugar_g = (Number(row.sugar_g) || 0) * scale;
+        update.sodium_mg = (Number(row.sodium_mg) || 0) * scale;
+        update.saturated_fat_g = (Number(row.saturated_fat_g) || 0) * scale;
+        recomputed = true;
       }
     }
 
     const { error: upErr } = await supabase.from("food_logs").update(update).eq("id", id);
     if (upErr) return json({ error: upErr.message }, 500);
-    return json({ status: "ok", grams, recomputed: !!row.usda_fdc_id });
+    return json({ status: "ok", grams, recomputed });
   }
 
   // POST ?action=relink&id=X  body {fdc_id, grams?}
