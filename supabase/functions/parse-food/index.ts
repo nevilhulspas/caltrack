@@ -1,6 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { displayName, scaleToGrams, searchFoods, type FdcFood } from "../_shared/usda.ts";
 import {
   computeRecipeTotals,
   findLibraryMatch,
@@ -14,11 +13,6 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// FDC's score is an opaque relevance number — typical good matches are
-// 200-1000, weak matches under 50. We require a minimum to avoid logging the
-// wrong food, and fall back to Claude's estimate below the threshold.
-const MATCH_SCORE_THRESHOLD = 100;
-
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -31,7 +25,7 @@ Schema:
 {
   "items": [
     {
-      "query": "concise USDA-style search term (e.g. 'chicken breast cooked', 'jasmine rice cooked', 'whole milk')",
+      "query": "concise food name (e.g. 'chicken breast, cooked', 'jasmine rice, cooked', 'whole milk')",
       "grams": number,
       "estimated_calories": number,
       "estimated_protein_g": number,
@@ -51,10 +45,13 @@ Schema:
 
 Rules:
 - Split a meal into one item per food. "Chicken with rice" => two items.
-- "query" must be a concise noun phrase that would match an entry in the USDA FoodData Central database.
-- Include cooking state when relevant ("cooked", "raw", "grilled") — USDA has both.
+- "query" is the descriptive name that will be saved to the user's food log.
 - If grams aren't stated, estimate a realistic single serving in grams.
-- Estimated macros are a fallback in case database lookup fails — make them reasonable.
+- The estimated_* macros are AUTHORITATIVE — they are written directly to the user's database and Apple Health. There is no database lookup behind this. Be accurate.
+- Account for cooking state ("cooked", "raw", "grilled", "fried") — it changes macros significantly. Default to cooked weight unless the user clearly meant raw.
+- For brand-name products (e.g. "Coke Zero", "Ben & Jerry's"), use the brand's published nutrition facts.
+- For composite/restaurant foods, give a realistic estimate based on typical preparation.
+- Numbers must be for the stated grams, not per-100g.
 
 Extracting meal_time and date_offset_days:
 - Listen for explicit meal cues anywhere in the input — "for lunch", "had breakfast", "at dinner", "as a snack", "voor de lunch", "bij het ontbijt", etc. — and set meal_time accordingly. The cue does not have to be at the start.
@@ -198,59 +195,6 @@ async function extractWithClaude(food: string, libraryNames: string[] = []): Pro
   }
 }
 
-// Ask Claude to pick the best match for a given item from the top FDC
-// candidates. FDC's text-relevance score rewards descriptions that pack in
-// query keywords — so e.g. "chicken breast tenders, breaded, microwaved"
-// outranks "chicken broilers or fryers, breast, meat only, cooked, roasted"
-// for the query "chicken breast cooked." A short LLM rerank fixes this.
-//
-// Returns null if Claude judges no candidate is a good match.
-async function pickBestMatchWithLlm(item: ExtractedItem, candidates: FdcFood[]): Promise<FdcFood | null> {
-  const usable = candidates.filter((c) => c.caloriesPer100g > 0 && c.searchScore >= MATCH_SCORE_THRESHOLD);
-  if (!usable.length) return null;
-  if (usable.length === 1) return usable[0];
-
-  const list = usable
-    .map((c, i) => `${i}: ${c.description}${c.brand ? ` [${c.brand}]` : ""} — ${Math.round(c.caloriesPer100g)} kcal/100g`)
-    .join("\n");
-
-  const prompt = `Pick the best match for the user's food from these USDA FoodData Central candidates.
-
-User said: "${item.query}" (${item.grams}g)
-
-Candidates:
-${list}
-
-Rules:
-- Prefer plain, unprocessed forms unless the user said otherwise (e.g. "chicken breast" should pick plain cooked breast meat, not breaded tenders).
-- Match cooking state when stated.
-- If the user mentioned a specific brand, prefer that brand.
-- If no candidate is a reasonable match, reply "none".
-
-Reply with ONLY the candidate index number (e.g. "2"), or "none". No other text.`;
-
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY!,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 8,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-  if (!resp.ok) throw new Error(`Claude rerank error: ${await resp.text()}`);
-  const data = await resp.json();
-  const text = (data.content[0].text as string).trim().toLowerCase();
-  if (text.startsWith("none")) return null;
-  const idx = parseInt(text, 10);
-  if (Number.isNaN(idx) || idx < 0 || idx >= usable.length) return null;
-  return usable[idx];
-}
-
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -357,14 +301,14 @@ Deno.serve(async (req: Request) => {
     const extracted = await extractWithClaude(food, library.map((l) => l.name));
     const entryDate = calculateEntryDate(extracted.date_offset_days, extracted.meal_time);
 
-    // 2. Per item: try the user's library first (custom foods + meals);
-    //    fall back to USDA FDC; finally Claude's estimate. Library matches
-    //    populate recipe_id or custom_food_id on the food_logs row.
+    // 2. Per item: try the user's library first (custom foods + meals).
+    //    If no library match, commit Claude's macros directly as the
+    //    authoritative values — no USDA lookup. Library matches populate
+    //    recipe_id or custom_food_id on the food_logs row.
     type ItemResult = {
       query: string;
       grams: number;
-      status: "matched" | "estimated" | "library";
-      fdc_id: number | null;
+      status: "ai" | "library";
       recipe_id: string | null;
       custom_food_id: string | null;
       matched_name: string | null;
@@ -378,58 +322,38 @@ Deno.serve(async (req: Request) => {
       saturated_fat_g: number;
     };
 
-    const itemResults: ItemResult[] = await Promise.all(
-      extracted.items.map(async (item): Promise<ItemResult> => {
-        const fallback: ItemResult = {
-          query: item.query, grams: item.grams,
-          status: "estimated", fdc_id: null, recipe_id: null, custom_food_id: null,
-          matched_name: null,
-          calories: item.estimated_calories, protein_g: item.estimated_protein_g,
-          carbs_g: item.estimated_carbs_g, fat_g: item.estimated_fat_g,
-          fiber_g: item.estimated_fiber_g, sugar_g: item.estimated_sugar_g,
-          sodium_mg: item.estimated_sodium_mg, saturated_fat_g: item.estimated_saturated_fat_g,
-        };
+    const itemResults: ItemResult[] = extracted.items.map((item): ItemResult => {
+      const aiResult: ItemResult = {
+        query: item.query, grams: item.grams,
+        status: "ai", recipe_id: null, custom_food_id: null,
+        matched_name: null,
+        calories: item.estimated_calories, protein_g: item.estimated_protein_g,
+        carbs_g: item.estimated_carbs_g, fat_g: item.estimated_fat_g,
+        fiber_g: item.estimated_fiber_g, sugar_g: item.estimated_sugar_g,
+        sodium_mg: item.estimated_sodium_mg, saturated_fat_g: item.estimated_saturated_fat_g,
+      };
 
-        try {
-          // Library first — substring/token match against custom foods + recipes.
-          const lib = findLibraryMatch(item.query, library);
-          if (lib) {
-            // Snap to default_grams when user didn't say a quantity so totals
-            // match the saved recipe rather than scaling fractionally.
-            const grams = item.grams && item.grams > 0 ? item.grams : lib.default_grams;
-            const macros = libraryMacros(lib, grams);
-            return {
-              query: item.query, grams, status: "library",
-              fdc_id: null,
-              recipe_id: lib.kind === "recipe" ? lib.id : null,
-              custom_food_id: lib.kind === "custom_food" ? lib.id : null,
-              matched_name: lib.name,
-              ...macros,
-            };
-          }
-
-          // USDA fallback
-          const candidates = await searchFoods(item.query);
-          const match = await pickBestMatchWithLlm(item, candidates);
-          if (match) {
-            const macros = scaleToGrams(match, item.grams);
-            return {
-              query: item.query, grams: item.grams, status: "matched",
-              fdc_id: match.fdcId, recipe_id: null, custom_food_id: null,
-              matched_name: displayName(match), ...macros,
-            };
-          }
-          return fallback;
-        } catch (e) {
-          // Anything in this branch (library lookup, FDC search, Haiku rerank,
-          // unexpected null/shape from a dependency) lands here. Returning the
-          // fallback means a single bad item degrades to Claude's estimate
-          // rather than 500-ing the whole submission.
-          console.error(`Item "${item.query}" failed:`, (e as Error).message);
-          return fallback;
+      try {
+        const lib = findLibraryMatch(item.query, library);
+        if (lib) {
+          // Snap to default_grams when user didn't say a quantity so totals
+          // match the saved recipe rather than scaling fractionally.
+          const grams = item.grams && item.grams > 0 ? item.grams : lib.default_grams;
+          const macros = libraryMacros(lib, grams);
+          return {
+            query: item.query, grams, status: "library",
+            recipe_id: lib.kind === "recipe" ? lib.id : null,
+            custom_food_id: lib.kind === "custom_food" ? lib.id : null,
+            matched_name: lib.name,
+            ...macros,
+          };
         }
-      }),
-    );
+        return aiResult;
+      } catch (e) {
+        console.error(`Library match for "${item.query}" failed:`, (e as Error).message);
+        return aiResult;
+      }
+    });
 
     // 3. One row per item so the dashboard can show per-item match status.
     const rows = itemResults.map((r) => ({
@@ -447,11 +371,11 @@ Deno.serve(async (req: Request) => {
       user_name: userName,
       is_deleted: false,
       entry_date: entryDate.toISOString(),
-      // Library matches mark usda_status="matched" so the existing dashboard
-      // logic (no "estimated" badge) works; the recipe_id / custom_food_id
-      // columns differentiate the source for the library badge.
-      usda_status: r.status === "library" ? "matched" : r.status,
-      usda_fdc_id: r.fdc_id ? String(r.fdc_id) : null,
+      // Library matches reuse "matched" (no badge — the ★ lib-badge identifies
+      // them via recipe_id/custom_food_id). Claude-only items use "ai" so the
+      // dashboard renders a non-interactive AI badge.
+      usda_status: r.status === "library" ? "matched" : "ai",
+      usda_fdc_id: null,
       usda_grams: r.grams,
       recipe_id: r.recipe_id,
       custom_food_id: r.custom_food_id,
@@ -485,9 +409,8 @@ Deno.serve(async (req: Request) => {
         usda_status: r.status,
       })),
       usda_summary: {
-        matched: itemResults.filter((r) => r.status === "matched").length,
-        estimated: itemResults.filter((r) => r.status === "estimated").length,
         library: itemResults.filter((r) => r.status === "library").length,
+        ai: itemResults.filter((r) => r.status === "ai").length,
       },
     });
   } catch (error) {
