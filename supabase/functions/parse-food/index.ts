@@ -161,7 +161,18 @@ function fallbackExtracted(food: string): Extracted {
   };
 }
 
-async function extractWithClaude(food: string, libraryNames: string[] = []): Promise<Extracted> {
+interface ImageInput {
+  data: string; // base64, no data: prefix
+  mediaType: string; // e.g. "image/jpeg"
+}
+
+const IMAGE_SECTION = `\n\nA photo of food is attached. Identify every distinct food and drink visible. Estimate each portion size in grams from visual cues — plate/bowl size, utensils, hands, packaging, and typical serving sizes. Fill in macros for those estimated grams. If text is also provided below, use it as extra context (it may name the dish or give a portion hint). Split the plate into one item per food, same as for text input.`;
+
+async function extractWithClaude(
+  food: string,
+  libraryNames: string[] = [],
+  image?: ImageInput,
+): Promise<Extracted> {
   // Tell Claude about the user's saved library so it doesn't split named
   // meals (e.g. "Nevils protein meal") into generic ingredients. If any of
   // these names appear in the input — even with minor variations from
@@ -169,6 +180,19 @@ async function extractWithClaude(food: string, libraryNames: string[] = []): Pro
   const librarySection = libraryNames.length
     ? `\n\nThe user has saved these meal & custom-food names in their library:\n${libraryNames.map((n) => `- ${n}`).join("\n")}\n\nIf the input mentions any of them (allow loose matching for spelling, possessives, plurals, or speech-to-text noise — e.g. "Neville's" matches "Nevils", "protein shake" matches "Protein Shake"), output that saved name as ONE single item with query set to the EXACT saved name. Do not split a saved meal into its ingredients. Use grams the user explicitly stated, otherwise leave grams as 0.`
     : "";
+
+  const promptText = `${EXTRACT_PROMPT}${image ? IMAGE_SECTION : ""}${librarySection}\n\nFood: ${food || (image ? "(see attached photo)" : "")}`;
+
+  // Multimodal content: image block first (Claude reads images best when they
+  // precede the instructions), then the text prompt. Text-only requests send a
+  // plain string.
+  const content = image
+    ? [
+      { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.data } },
+      { type: "text", text: promptText },
+    ]
+    : promptText;
+
   const resp = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -179,12 +203,12 @@ async function extractWithClaude(food: string, libraryNames: string[] = []): Pro
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
       max_tokens: 800,
-      messages: [{ role: "user", content: `${EXTRACT_PROMPT}${librarySection}\n\nFood: ${food}` }],
+      messages: [{ role: "user", content }],
     }),
   });
   if (!resp.ok) {
     console.error(`Claude HTTP error: ${resp.status} ${await resp.text()}`);
-    return fallbackExtracted(food);
+    return fallbackExtracted(food || "Photo");
   }
   const data = await resp.json();
   const text0 = (data?.content?.[0]?.text as string | undefined) ?? "";
@@ -196,12 +220,12 @@ async function extractWithClaude(food: string, libraryNames: string[] = []): Pro
     const parsed = JSON.parse(text) as Extracted;
     if (!parsed || !Array.isArray(parsed.items) || parsed.items.length === 0) {
       console.error("Claude returned no items:", text.slice(0, 500));
-      return fallbackExtracted(food);
+      return fallbackExtracted(food || "Photo");
     }
     return parsed;
   } catch (e) {
     console.error("Claude JSON parse failed:", (e as Error).message, text.slice(0, 500));
-    return fallbackExtracted(food);
+    return fallbackExtracted(food || "Photo");
   }
 }
 
@@ -218,12 +242,17 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    const { food, user } = await req.json();
-    if (!food) return jsonResponse({ error: "Missing 'food' field" }, 400);
+    const { food, user, image_base64, image_media_type } = await req.json();
+    const text: string = typeof food === "string" ? food : "";
+    const image: ImageInput | undefined = typeof image_base64 === "string" && image_base64.length > 0
+      ? { data: image_base64, mediaType: typeof image_media_type === "string" && image_media_type ? image_media_type : "image/jpeg" }
+      : undefined;
+    if (!text && !image) return jsonResponse({ error: "Provide 'food' text or 'image_base64'" }, 400);
 
     const userName = user || "Unknown";
 
-    if (isUndoCommand(food)) {
+    // Undo / save-as are text-only voice commands. Skip entirely for photo logs.
+    if (text && !image && isUndoCommand(text)) {
       const { data: lastEntry, error: fetchError } = await supabase
         .from("food_logs")
         .select("id, food_name")
@@ -248,8 +277,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // Voice "save this as <name>": find the most recent submission for this
-    // user, group its rows, and create a recipe from them.
-    const saveAsName = detectSaveCommand(food);
+    // user, group its rows, and create a recipe from them. Text-only.
+    const saveAsName = text && !image ? detectSaveCommand(text) : null;
     if (saveAsName) {
       const { data: anchor } = await supabase
         .from("food_logs").select("*").eq("user_name", userName).eq("is_deleted", false)
@@ -305,11 +334,16 @@ Deno.serve(async (req: Request) => {
       console.error("Library load failed:", (e as Error).message);
     }
 
-    // 1. Claude splits the input into structured items + meal metadata.
-    //    Pass library names so Claude preserves saved meals as single items
-    //    instead of inventing generic ingredients for them.
-    const extracted = await extractWithClaude(food, library.map((l) => l.name));
+    // 1. Claude splits the input (text and/or photo) into structured items +
+    //    meal metadata. Pass library names so Claude preserves saved meals as
+    //    single items instead of inventing generic ingredients for them.
+    const extracted = await extractWithClaude(text, library.map((l) => l.name), image);
     const entryDate = calculateEntryDate(extracted.date_offset_days, extracted.meal_time);
+
+    // raw_input groups a submission's rows (save-as) and is the display
+    // fallback. Photo logs have no text, so synthesize a label from the meal
+    // summary Claude produced.
+    const rawInput = text || `📷 ${extracted.food_name || "Photo"}`;
 
     // 2. Per item: try the user's library first (custom foods + meals).
     //    If no library match, commit Claude's macros directly as the
@@ -367,7 +401,7 @@ Deno.serve(async (req: Request) => {
 
     // 3. One row per item so the dashboard can show per-item match status.
     const rows = itemResults.map((r) => ({
-      raw_input: food,
+      raw_input: rawInput,
       food_name: r.matched_name ?? r.query,
       calories: r.calories,
       protein_g: r.protein_g,
